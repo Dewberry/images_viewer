@@ -49,7 +49,7 @@ class ImagesViewer:
         locale_path = os.path.join(
             self.plugin_dir,
             'i18n',
-            'afs_{}.qm'.format(locale))
+            'ImagesViewer_{}.qm'.format(locale))
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
