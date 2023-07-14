@@ -1,19 +1,24 @@
 from PyQt5 import uic
 from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtWidgets import QLabel
 from PyQt5.QtCore import Qt
+from qgis.core import QgsFeatureRequest
 from PIL import Image
 import numpy as np
 import io
+import os
 
-Ui_Dialog, QtBaseClass = uic.loadUiType("images_dialog.ui")
+Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_dialog.ui"))
 
 class ImageDialog(QtBaseClass, Ui_Dialog):
-    def __init__(self, layer, parent=None):
+    def __init__(self, iface, parent=None):
         super(ImageDialog, self).__init__(parent)
         self.setupUi(self)
 
-        self.layer = layer
-        self.canvas = iface.mapCanvas()
+        self.iface = iface
+        self.layer = self.iface.activeLayer()
+        print(self.layer.name())
+        self.canvas = self.iface.mapCanvas()
 
         self.prev_button.clicked.connect(self.previous_feature)
         self.next_button.clicked.connect(self.next_feature)
@@ -52,8 +57,3 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         index = self.feature_stacked_widget.currentIndex()
         if index < self.feature_stacked_widget.count() - 1:
             self.feature_stacked_widget.setCurrentIndex(index + 1)
-
-
-layer = iface.activeLayer()
-dlg = ImageDialog(layer)
-dlg.show()
