@@ -27,7 +27,7 @@ from .images_dialog import ImageDialog
 import os.path
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-icon_path = os.path.join(current_dir, 'icon.png')
+icon_path = os.path.join(current_dir, 'icon.svg')
 
 class ImagesViewer:
     """QGIS Plugin Implementation."""
