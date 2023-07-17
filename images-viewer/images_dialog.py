@@ -48,12 +48,10 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
             if self.is_360(blob):
                 direction = 0
-                map_manager = None
                 angle_degrees = 0
                 x = 0
                 y = 0
-                params = {}
-                gl_widget = Image360Widget(image, float(direction), map_manager, angle_degrees, x, y, params, 1)
+                gl_widget = Image360Widget(image, float(direction), angle_degrees, x, y)
                 self.feature_stacked_widget.addWidget(gl_widget)
             else:
                 qimage = QImage(np.array(image), image.size[0], image.size[1], image.size[0] * 3, QImage.Format_RGB888)
