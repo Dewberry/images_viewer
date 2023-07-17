@@ -10,11 +10,11 @@ import math
 import requests
 
 class Image360Widget(QGLWidget):
-    def __init__(self, url, direction, map_manager, angle_degrees, x, y, params, gpkg, instance):
+    def __init__(self, image, direction, map_manager, angle_degrees, x, y, params, instance):
         super().__init__()
         self.instance = instance
         self.show_crosshair = False
-        self.url = url
+        self.url = ''
         self.x = x
         self.y = y
         self.prev_dx = 0
@@ -25,7 +25,7 @@ class Image360Widget(QGLWidget):
         self.direction = direction
         self.angle_degrees = angle_degrees
         self.params = params
-        self.image = Image.open(url)
+        self.image = image
         self.image_width, self.image_height = self.image.size
         self.yaw = 90 - (direction - ((450 - angle_degrees) % 360))
         self.pitch = 0
@@ -35,34 +35,33 @@ class Image360Widget(QGLWidget):
         self.moving = False
         self.direction = angle_degrees
         self.map_manager = map_manager
-        self.gpkg = gpkg
 
-    def initializeGL(self):
-        glClearColor(1.0, 1.0, 1.0, 1.0)
-        glEnable(GL_TEXTURE_2D)
-        self.texture = glGenTextures(1)
-        glBindTexture(GL_TEXTURE_2D, self.texture)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.image_width, self.image_height, 0, GL_RGB, GL_UNSIGNED_BYTE, self.image.tobytes())
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-        self.sphere = gluNewQuadric()
-        glMatrixMode(GL_PROJECTION)
+    def initializeGL(self): # Sets up the OpenGL state
+        glClearColor(1.0, 1.0, 1.0, 1.0) # Clear color buffer and set it color to white
+        glEnable(GL_TEXTURE_2D) # Enable the 2D texturing
+        self.texture = glGenTextures(1) # Generate the texture ID
+        glBindTexture(GL_TEXTURE_2D, self.texture) # Binds the texture ID above to a 2D texture target
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.image_width, self.image_height, 0, GL_RGB, GL_UNSIGNED_BYTE, self.image.tobytes()) # Upload the image data to the GPU
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR) # Set the texture's magnification filter to linear filtering
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR) # Set the texture's minification filter to linear filtering
+        self.sphere = gluNewQuadric() # Creates a new quadric to draw a sphere
+        glMatrixMode(GL_PROJECTION) # Set up the projection matrix to project image to the sphere
         glLoadIdentity()
         gluPerspective(90, self.width()/self.height(), 0.1, 1000)
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
 
-    def paintGL(self):
+    def paintGL(self): # Renders the texture
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glPushMatrix()
-        glRotatef(self.pitch, 1, 0, 0)
+        glRotatef(self.pitch, 1, 0, 0) # Rotating the model around axes
         glRotatef(self.yaw, 0, 1, 0)
         glRotatef(90, 1, 0, 0)
         glRotatef(90, 0, 0, 1)
-        gluQuadricTexture(self.sphere, True)
-        gluSphere(self.sphere, 1, 100, 100)
+        gluQuadricTexture(self.sphere, True) # Enable texturing for the sphere
+        gluSphere(self.sphere, 1, 100, 100) # Draw the sphere
         glPopMatrix()
-        if self.show_crosshair:
+        if self.show_crosshair: # Display the crosshair
             glMatrixMode(GL_PROJECTION)
             glPushMatrix()
             glLoadIdentity()
@@ -85,11 +84,11 @@ class Image360Widget(QGLWidget):
             glPopMatrix()
             glMatrixMode(GL_MODELVIEW)
 
-    def resizeGL(self, width, height):
+    def resizeGL(self, width, height): # Logic for when the window is resized
         glViewport(0, 0, width, height)
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        gluPerspective(self.fov, self.width()/self.height(), 0.1, 1000)
+        gluPerspective(self.fov, self.width()/self.height(), 0.1, 1000) # Perspective projection with new aspect
 
     def mousePressEvent(self, event):
         if event.button() == QtCore.Qt.LeftButton:
@@ -132,7 +131,7 @@ class Image360Widget(QGLWidget):
             self.setCursor(QtCore.Qt.OpenHandCursor)
             self.moving = False
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event): #Track the coordinate change rate and inertia for rotating
         self.moving = True
         if self.moving:
             dx = event.pos().x() - self.mouse_x

@@ -38,19 +38,22 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         features = self.layer.getFeatures(request)
 
         for feature in features:
-            blob = feature["bytes"]
-            image = Image.open(io.BytesIO(blob))
+            image_source = "bytes" # or "link360"
+            if image_source == "bytes":
+                blob = feature["bytes"]
+                image = Image.open(io.BytesIO(blob))
+            else:
+                url = feature['link360']
+                image = Image.open(url)
 
             if self.is_360(blob):
-                url = feature['link360']
                 direction = 0
                 map_manager = None
                 angle_degrees = 0
                 x = 0
                 y = 0
                 params = {}
-                gpkg = True
-                gl_widget = Image360Widget(url, float(direction), map_manager, angle_degrees, x, y, params, gpkg, 1)
+                gl_widget = Image360Widget(image, float(direction), map_manager, angle_degrees, x, y, params, 1)
                 self.feature_stacked_widget.addWidget(gl_widget)
             else:
                 qimage = QImage(np.array(image), image.size[0], image.size[1], image.size[0] * 3, QImage.Format_RGB888)
