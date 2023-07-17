@@ -64,3 +64,8 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         index = self.feature_stacked_widget.currentIndex()
         if index < self.feature_stacked_widget.count() - 1:
             self.feature_stacked_widget.setCurrentIndex(index + 1)
+
+    def closeEvent(self, event):
+        # When window is closed, disconnect extentsChanged signal
+        self.canvas.extentsChanged.disconnect(self.refresh_on_move)
+        super().closeEvent(event)
