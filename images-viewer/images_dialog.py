@@ -4,11 +4,11 @@ from PyQt5.QtWidgets import QLabel
 from PyQt5.QtCore import Qt
 from qgis.core import QgsFeatureRequest
 from PIL import Image
-from PIL.ExifTags import TAGS
 import numpy as np
 import io
 import os
 from .image360_loader import Image360Widget
+from .images_helpers import is_360
 
 Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_dialog.ui"))
 
@@ -46,7 +46,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                 url = feature['link360']
                 image = Image.open(url)
 
-            if self.is_360(blob):
+            if is_360(image):
                 direction = 0
                 angle_degrees = 0
                 x = 0
@@ -71,34 +71,3 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         index = self.feature_stacked_widget.currentIndex()
         if index < self.feature_stacked_widget.count() - 1:
             self.feature_stacked_widget.setCurrentIndex(index + 1)
-
-    def is_360(self, photo):
-        '''Takes in a bytes representation of a photo, returns a boolean indicating whether that photo is a 360 photo or not'''
-        image_stream = io.BytesIO(photo)
-        image = Image.open(image_stream)
-        width, height = image.size
-
-        exifdata = image.getexif()
-        # looping through all the tags present in exifdata
-        has_gpano = False
-        for tagid in exifdata:
-            # getting the tag name instead of tag id
-            tagname = TAGS.get(tagid, tagid)
-            # passing the tagid to get its respective value
-            value = exifdata.get(tagid)
-            if tagname == "XMLPacket":
-                xml = value.decode("utf-8")
-                if "GPano" in xml or "XMP-GPano" in xml:
-                    has_gpano = True
-                break
-        has_360_dimensions = True if width >= height * 2 else False
-        if has_360_dimensions and not has_gpano:
-            #raise ValueError("Unclear whether photo is regular or 360")
-            return True
-        elif has_gpano and not has_360_dimensions:
-            #raise ValueError("Unclear whether photo is regular or 360")
-            return True
-        elif has_360_dimensions and has_gpano:
-            return True
-        else:
-            return False
