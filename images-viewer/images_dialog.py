@@ -25,6 +25,13 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.prev_button.clicked.connect(self.previous_feature)
         self.next_button.clicked.connect(self.next_feature)
 
+        # Connect the extentsChanged signal from the canvas to the refresh_on_move slot
+        self.canvas.extentsChanged.connect(self.refresh_on_move)
+
+        self.refresh_images()
+
+    def refresh_on_move(self):
+        # This method will be called when the canvas extent is changed
         self.refresh_images()
 
     def refresh_images(self):
@@ -71,3 +78,8 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         index = self.feature_stacked_widget.currentIndex()
         if index < self.feature_stacked_widget.count() - 1:
             self.feature_stacked_widget.setCurrentIndex(index + 1)
+
+    def closeEvent(self, event):
+        # When window is closed, disconnect extentsChanged signal
+        self.canvas.extentsChanged.disconnect(self.refresh_on_move)
+        super().closeEvent(event)
