@@ -55,15 +55,15 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             frame = QFrame()
             frame.setFrameStyle(QFrame.Box | QFrame.Plain)
             frame.setStyleSheet("QFrame {color: #BEBEBE;}")
-            frame_layout = QVBoxLayout(frame)
+            frame.setMinimumSize(400, 600)  # Set the fixed size of the frame
 
             # Create a QScrollArea and add the QLabel to it
             scrollArea = QScrollArea()
+            scrollArea.setFrameShape(QFrame.NoFrame)
             scrollArea.setWidget(label)
-            scrollArea.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)  # Frame will shrink/grow with its content
-            frame_layout.addWidget(scrollArea)
 
-            frame.setMinimumSize(400, 600)  # Set the fixed size of the frame
+            frame_layout = QVBoxLayout(frame)
+            frame_layout.addWidget(scrollArea)
 
             self.gridLayout.addWidget(frame, row, col)
 
