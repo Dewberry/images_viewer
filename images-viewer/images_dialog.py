@@ -1,6 +1,6 @@
 from PyQt5 import uic
 from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import QLabel, QScrollArea, QGridLayout, QWidget
+from PyQt5.QtWidgets import QLabel, QScrollArea, QSizePolicy, QVBoxLayout, QFrame
 from PyQt5.QtCore import Qt
 from qgis.core import QgsFeatureRequest
 from PIL import Image
@@ -51,7 +51,21 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             label = QLabel()
             label.setPixmap(pixmap)
 
-            self.gridLayout.addWidget(label, row, col)
+            # Create a QFrame, add the QLabel to it, and set a fixed size
+            frame = QFrame()
+            frame.setFrameStyle(QFrame.Box | QFrame.Plain)
+            frame.setStyleSheet("QFrame {color: #BEBEBE;}")
+            frame_layout = QVBoxLayout(frame)
+
+            # Create a QScrollArea and add the QLabel to it
+            scrollArea = QScrollArea()
+            scrollArea.setWidget(label)
+            scrollArea.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)  # Frame will shrink/grow with its content
+            frame_layout.addWidget(scrollArea)
+
+            frame.setMinimumSize(400, 600)  # Set the fixed size of the frame
+
+            self.gridLayout.addWidget(frame, row, col)
 
             # Change the row and column for the next image
             col += 1
