@@ -1,6 +1,6 @@
 from PyQt5 import uic
 from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import QLabel
+from PyQt5.QtWidgets import QLabel, QScrollArea, QGridLayout, QWidget
 from PyQt5.QtCore import Qt
 from qgis.core import QgsFeatureRequest
 from PIL import Image
@@ -20,9 +20,6 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         print(self.layer.name())
         self.canvas = self.iface.mapCanvas()
 
-        self.prev_button.clicked.connect(self.previous_feature)
-        self.next_button.clicked.connect(self.next_feature)
-
         # Connect the extentsChanged signal from the canvas to the refresh_on_move slot
         self.canvas.extentsChanged.connect(self.refresh_on_move)
 
@@ -35,13 +32,16 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
     def refresh_images(self):
         print("Refreshing images...")
 
-        while self.feature_stacked_widget.count():
-            self.feature_stacked_widget.removeWidget(self.feature_stacked_widget.widget(0))
+        # Clear all widgets from the grid layout
+        for i in reversed(range(self.gridLayout.count())):
+            self.gridLayout.itemAt(i).widget().setParent(None)
 
         extent = self.canvas.extent()
         request = QgsFeatureRequest().setFilterRect(extent)
         features = self.layer.getFeatures(request)
 
+        row = 0
+        col = 0
         for feature in features:
             blob = feature["bytes"]
             image = Image.open(io.BytesIO(blob))
@@ -51,19 +51,16 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             label = QLabel()
             label.setPixmap(pixmap)
 
-            self.feature_stacked_widget.addWidget(label)
+            self.gridLayout.addWidget(label, row, col)
+
+            # Change the row and column for the next image
+            col += 1
+            if col > 2:  # Change this number to adjust how many images per row
+                col = 0
+                row += 1
 
         self.show()
 
-    def previous_feature(self):
-        index = self.feature_stacked_widget.currentIndex()
-        if index > 0:
-            self.feature_stacked_widget.setCurrentIndex(index - 1)
-
-    def next_feature(self):
-        index = self.feature_stacked_widget.currentIndex()
-        if index < self.feature_stacked_widget.count() - 1:
-            self.feature_stacked_widget.setCurrentIndex(index + 1)
 
     def closeEvent(self, event):
         # When window is closed, disconnect extentsChanged signal
