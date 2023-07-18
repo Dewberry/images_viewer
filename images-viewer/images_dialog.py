@@ -1,6 +1,6 @@
 from PyQt5 import uic
 from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import QLabel, QScrollArea, QSizePolicy, QVBoxLayout, QFrame
+from PyQt5.QtWidgets import QLabel, QScrollArea, QWidget, QVBoxLayout, QFrame
 from PyQt5.QtCore import Qt
 from qgis.core import QgsFeatureRequest
 from PIL import Image
@@ -50,6 +50,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             pixmap = QPixmap.fromImage(qimage)
             label = QLabel()
             label.setPixmap(pixmap)
+            label.setAlignment(Qt.AlignCenter)  # Align pixmap in QLabel
 
             # Create a QFrame, add the QLabel to it, and set a fixed size
             frame = QFrame()
@@ -60,7 +61,14 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             # Create a QScrollArea and add the QLabel to it
             scrollArea = QScrollArea()
             scrollArea.setFrameShape(QFrame.NoFrame)
-            scrollArea.setWidget(label)
+
+            # Create a QWidget and a QVBoxLayout to align QLabel at the top
+            labelContainer = QWidget()
+            labelLayout = QVBoxLayout(labelContainer)
+            labelLayout.addWidget(label)
+            labelLayout.addStretch(1)  # Add stretch at the bottom to push QLabel up
+
+            scrollArea.setWidget(labelContainer)  # Add QWidget to QScrollArea instead of QLabel directly
 
             frame_layout = QVBoxLayout(frame)
             frame_layout.addWidget(scrollArea)
