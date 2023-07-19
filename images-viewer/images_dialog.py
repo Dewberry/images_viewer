@@ -1,4 +1,5 @@
 from PyQt5 import uic
+from PyQt5.QtCore import QSettings
 from PyQt5.QtWidgets import QScrollArea, QVBoxLayout, QFrame, QHBoxLayout
 from qgis.core import QgsFeatureRequest
 from PIL import Image as PILImage
@@ -13,6 +14,9 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         super(ImageDialog, self).__init__(parent)
         self.setupUi(self)
 
+        self.settings = QSettings("QGIS3", "Images Viewer")
+
+
         self.iface = iface
         self.layer = self.iface.activeLayer()
         print(self.layer.name())
@@ -20,6 +24,11 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         # Connect the extentsChanged signal from the canvas to the refresh_on_move slot
         self.canvas.extentsChanged.connect(self.refresh_on_move)
+
+        # restore the dialog's position and size if exists
+        geometry = self.settings.value("geometry")
+        if geometry:
+            self.restoreGeometry(geometry)
 
         self.refresh_images()
 
@@ -88,4 +97,8 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
     def closeEvent(self, event):
         # When window is closed, disconnect extentsChanged signal
         self.canvas.extentsChanged.disconnect(self.refresh_on_move)
+
+        # save the dialog's position and size
+        self.settings.setValue("geometry", self.saveGeometry())
+
         super().closeEvent(event)
