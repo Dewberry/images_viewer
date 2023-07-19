@@ -1,6 +1,6 @@
 from PyQt5 import uic
 from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import QLabel, QScrollArea, QWidget, QVBoxLayout, QFrame
+from PyQt5.QtWidgets import QLabel, QScrollArea, QWidget, QVBoxLayout, QFrame, QHBoxLayout
 from PyQt5.QtCore import Qt
 from qgis.core import QgsFeatureRequest
 from PIL import Image
@@ -52,26 +52,33 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             label.setPixmap(pixmap)
             label.setAlignment(Qt.AlignCenter)  # Align pixmap in QLabel
 
-            # Create a QFrame, add the QLabel to it, and set a fixed size
+            scrollArea = QScrollArea()
+            scrollArea.setWidget(label)
+
+            # Create a QHBoxLayout and add QLabel to it, with stretches on both sides
+            innerLayout = QHBoxLayout()
+            innerLayout.addStretch(1)
+            innerLayout.addWidget(scrollArea)
+            innerLayout.addStretch(1)
+
+
+            # Create a QWidget and a QVBoxLayout to align QLabel at the top
+            labelLayout = QVBoxLayout()
+            labelLayout.addLayout(innerLayout)
+            labelLayout.addStretch(1)  # Add stretch at the bottom to push QLabel up
+
+
+
+
+
+            # Create a QFrame, add the label layout to it, and set a fixed size
             frame = QFrame()
             frame.setFrameStyle(QFrame.Box | QFrame.Plain)
             frame.setStyleSheet("QFrame {color: #BEBEBE;}")
             frame.setMinimumSize(400, 600)  # Set the fixed size of the frame
 
-            # Create a QScrollArea and add the QLabel to it
-            scrollArea = QScrollArea()
-            scrollArea.setFrameShape(QFrame.NoFrame)
-
-            # Create a QWidget and a QVBoxLayout to align QLabel at the top
-            labelContainer = QWidget()
-            labelLayout = QVBoxLayout(labelContainer)
-            labelLayout.addWidget(label)
-            labelLayout.addStretch(1)  # Add stretch at the bottom to push QLabel up
-
-            scrollArea.setWidget(labelContainer)  # Add QWidget to QScrollArea instead of QLabel directly
-
             frame_layout = QVBoxLayout(frame)
-            frame_layout.addWidget(scrollArea)
+            frame_layout.addLayout(labelLayout)
 
             self.gridLayout.addWidget(frame, row, col)
 
