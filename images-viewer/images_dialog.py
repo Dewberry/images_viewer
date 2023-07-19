@@ -46,6 +46,8 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         extent = self.canvas.extent()
         request = QgsFeatureRequest().setFilterRect(extent)
         features = self.layer.getFeatures(request)
+        filtered_count = 0
+
 
         row = 0
         col = 0
@@ -84,12 +86,19 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             frame_layout.addLayout(labelLayout)
 
             self.gridLayout.addWidget(frame, row, col)
+            filtered_count += 1
 
             # Change the row and column for the next image
             col += 1
             if col > 2:  # Change this number to adjust how many images per row
                 col = 0
                 row += 1
+
+        total_count = self.layer.featureCount()
+
+        # Set window title
+        self.setWindowTitle(f"{self.layer.name()} -- Features Total: {total_count}, Filtered: {filtered_count}")
+
 
         self.show()
 
