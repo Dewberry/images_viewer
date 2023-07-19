@@ -3,12 +3,11 @@ from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import QLabel
 from PyQt5.QtCore import Qt
 from qgis.core import QgsFeatureRequest
-from PIL import Image
+from PIL import Image as PILImage
 import numpy as np
 import io
 import os
-from .image360_loader import Image360Widget
-from .images_helpers import is_360
+from .image_factory import ImageFactory
 
 Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_dialog.ui"))
 
@@ -48,24 +47,12 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             image_source = "bytes" # or "link360"
             if image_source == "bytes":
                 blob = feature["bytes"]
-                image = Image.open(io.BytesIO(blob))
+                data = PILImage.open(io.BytesIO(blob))
             else:
                 url = feature['link360']
-                image = Image.open(url)
+                data = PILImage.open(url)
 
-            if is_360(image):
-                direction = 0
-                angle_degrees = 0
-                x = 0
-                y = 0
-                gl_widget = Image360Widget(image, float(direction), angle_degrees, x, y)
-                self.feature_stacked_widget.addWidget(gl_widget)
-            else:
-                qimage = QImage(np.array(image), image.size[0], image.size[1], image.size[0] * 3, QImage.Format_RGB888)
-                pixmap = QPixmap.fromImage(qimage)
-                label = QLabel()
-                label.setPixmap(pixmap)
-                self.feature_stacked_widget.addWidget(label)
+            self.feature_stacked_widget.addWidget(ImageFactory.create_widget(data))
 
         self.show()
 
