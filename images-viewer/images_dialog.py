@@ -1,12 +1,10 @@
 from PyQt5 import uic
-from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import QLabel, QScrollArea, QWidget, QVBoxLayout, QFrame, QHBoxLayout
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QScrollArea, QVBoxLayout, QFrame, QHBoxLayout
 from qgis.core import QgsFeatureRequest
-from PIL import Image
-import numpy as np
+from PIL import Image as PILImage
 import io
 import os
+from .image_factory import ImageFactory
 
 Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_dialog.ui"))
 
@@ -43,17 +41,18 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         row = 0
         col = 0
         for feature in features:
-            blob = feature["bytes"]
-            image = Image.open(io.BytesIO(blob))
+            image_source = "bytes" # or "link360"
+            if image_source == "bytes":
+                blob = feature["bytes"]
+                data = PILImage.open(io.BytesIO(blob))
+            else:
+                url = feature['link360']
+                data = PILImage.open(url)
 
-            qimage = QImage(np.array(image), image.size[0], image.size[1], image.size[0] * 3, QImage.Format_RGB888)
-            pixmap = QPixmap.fromImage(qimage)
-            label = QLabel()
-            label.setPixmap(pixmap)
-            label.setAlignment(Qt.AlignCenter)  # Align pixmap in QLabel
+            imageWidget = ImageFactory.create_widget(data)
 
             scrollArea = QScrollArea()
-            scrollArea.setWidget(label)
+            scrollArea.setWidget(imageWidget)
 
             # Create a QHBoxLayout and add QLabel to it, with stretches on both sides
             innerLayout = QHBoxLayout()
@@ -61,15 +60,10 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             innerLayout.addWidget(scrollArea)
             innerLayout.addStretch(1)
 
-
             # Create a QWidget and a QVBoxLayout to align QLabel at the top
             labelLayout = QVBoxLayout()
             labelLayout.addLayout(innerLayout)
             labelLayout.addStretch(1)  # Add stretch at the bottom to push QLabel up
-
-
-
-
 
             # Create a QFrame, add the label layout to it, and set a fixed size
             frame = QFrame()
