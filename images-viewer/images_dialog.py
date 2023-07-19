@@ -1,10 +1,7 @@
 from PyQt5 import uic
-from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import QLabel
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QScrollArea, QVBoxLayout, QFrame, QHBoxLayout
 from qgis.core import QgsFeatureRequest
 from PIL import Image as PILImage
-import numpy as np
 import io
 import os
 from .image_factory import ImageFactory
@@ -21,9 +18,6 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         print(self.layer.name())
         self.canvas = self.iface.mapCanvas()
 
-        self.prev_button.clicked.connect(self.previous_feature)
-        self.next_button.clicked.connect(self.next_feature)
-
         # Connect the extentsChanged signal from the canvas to the refresh_on_move slot
         self.canvas.extentsChanged.connect(self.refresh_on_move)
 
@@ -36,13 +30,16 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
     def refresh_images(self):
         print("Refreshing images...")
 
-        while self.feature_stacked_widget.count():
-            self.feature_stacked_widget.removeWidget(self.feature_stacked_widget.widget(0))
+        # Clear all widgets from the grid layout
+        for i in reversed(range(self.gridLayout.count())):
+            self.gridLayout.itemAt(i).widget().setParent(None)
 
         extent = self.canvas.extent()
         request = QgsFeatureRequest().setFilterRect(extent)
         features = self.layer.getFeatures(request)
 
+        row = 0
+        col = 0
         for feature in features:
             image_source = "bytes" # or "link360"
             if image_source == "bytes":
@@ -52,19 +49,41 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                 url = feature['link360']
                 data = PILImage.open(url)
 
-            self.feature_stacked_widget.addWidget(ImageFactory.create_widget(data))
+            imageWidget = ImageFactory.create_widget(data)
+
+            scrollArea = QScrollArea()
+            scrollArea.setWidget(imageWidget)
+
+            # Create a QHBoxLayout and add QLabel to it, with stretches on both sides
+            innerLayout = QHBoxLayout()
+            innerLayout.addStretch(1)
+            innerLayout.addWidget(scrollArea)
+            innerLayout.addStretch(1)
+
+            # Create a QWidget and a QVBoxLayout to align QLabel at the top
+            labelLayout = QVBoxLayout()
+            labelLayout.addLayout(innerLayout)
+            labelLayout.addStretch(1)  # Add stretch at the bottom to push QLabel up
+
+            # Create a QFrame, add the label layout to it, and set a fixed size
+            frame = QFrame()
+            frame.setFrameStyle(QFrame.Box | QFrame.Plain)
+            frame.setStyleSheet("QFrame {color: #BEBEBE;}")
+            frame.setMinimumSize(400, 600)  # Set the fixed size of the frame
+
+            frame_layout = QVBoxLayout(frame)
+            frame_layout.addLayout(labelLayout)
+
+            self.gridLayout.addWidget(frame, row, col)
+
+            # Change the row and column for the next image
+            col += 1
+            if col > 2:  # Change this number to adjust how many images per row
+                col = 0
+                row += 1
 
         self.show()
 
-    def previous_feature(self):
-        index = self.feature_stacked_widget.currentIndex()
-        if index > 0:
-            self.feature_stacked_widget.setCurrentIndex(index - 1)
-
-    def next_feature(self):
-        index = self.feature_stacked_widget.currentIndex()
-        if index < self.feature_stacked_widget.count() - 1:
-            self.feature_stacked_widget.setCurrentIndex(index + 1)
 
     def closeEvent(self, event):
         # When window is closed, disconnect extentsChanged signal
