@@ -1,7 +1,10 @@
 from PyQt5 import uic
 from PyQt5.QtCore import QSettings
-from PyQt5.QtWidgets import QScrollArea, QVBoxLayout, QFrame, QHBoxLayout, QPushButton
-from qgis.core import QgsFeatureRequest
+from PyQt5.QtCore import QSize
+
+from PyQt5.QtWidgets import QScrollArea, QVBoxLayout, QFrame, QHBoxLayout, QToolButton, QToolBar
+
+from qgis.core import QgsFeatureRequest, QgsApplication
 from PIL import Image as PILImage
 import io
 import os
@@ -10,6 +13,17 @@ from functools import partial
 from .image_factory import ImageFactory
 
 Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_dialog.ui"))
+
+
+def create_tool_button(icon_name, tooltip_text, callback, size=16):
+    button = QToolButton()
+    button.setIcon(QgsApplication.getThemeIcon(icon_name))
+    button.setToolTip(tooltip_text)
+    button.setAutoRaise(True)
+    button.setIconSize(QSize(size, size))
+    button.clicked.connect(callback)
+
+    return button
 
 class ImageDialog(QtBaseClass, Ui_Dialog):
     def __init__(self, iface, parent=None):
@@ -87,16 +101,25 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             frame_layout = QVBoxLayout(frame)
             frame_layout.addLayout(innerLayout)
 
-            flashButton = QPushButton("Flash this feature")
-            flashButton.clicked.connect(partial(self.flash_feature, feature))
 
-            selectButton = QPushButton("Select this feature")
-            selectButton.clicked.connect(partial(self.select_feature, feature))
+            toolbar = QToolBar()
 
-            buttonLayout = QHBoxLayout()
-            buttonLayout.addWidget(flashButton)
-            buttonLayout.addWidget(selectButton)
-            frame_layout.addLayout(buttonLayout)
+            selectButton = create_tool_button('mIconSelected.svg', "Select this feature", partial(self.select_feature, feature))
+            toolbar.addWidget(selectButton)
+
+            zoomButton = create_tool_button('mActionZoomTo.svg', "Zoom to this feature", partial(self.zoom_to_feature, feature))
+            toolbar.addWidget(zoomButton)
+
+            panButton = create_tool_button('mActionPanTo.svg', "Pan to this feature", partial(self.pan_to_feature, feature))
+            toolbar.addWidget(panButton)
+
+            panFlashButton = create_tool_button('mActionPanHighlightFeature.svg', "Pan and Flash this feature", partial(self.pan_flash_feature, feature))
+            toolbar.addWidget(panFlashButton)
+
+            flashButton = create_tool_button('mActionHighlightFeature.svg', "Flash this feature", partial(self.flash_feature, feature))
+            toolbar.addWidget(flashButton)
+
+            frame_layout.addWidget(toolbar)
 
             self.gridLayout.addWidget(frame, row, col)
             filtered_count += 1
@@ -120,6 +143,18 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
     def select_feature(self, feature):
         self.layer.selectByIds([feature.id()])
+
+    def pan_flash_feature(self, feature):
+        self.canvas.setExtent(feature.geometry().boundingBox())
+        self.canvas.refresh()
+        self.canvas.flashFeatureIds(self.layer, [feature.id()])
+
+    def pan_to_feature(self, feature):
+        self.canvas.setExtent(feature.geometry().boundingBox())
+        self.canvas.refresh()
+
+    def zoom_to_feature(self, feature):
+        self.canvas.zoomToFeatureIds(self.layer, [feature.id()])
 
     def closeEvent(self, event):
         # When window is closed, disconnect extentsChanged signal
