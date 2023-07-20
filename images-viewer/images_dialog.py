@@ -64,9 +64,9 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
             # Create a QHBoxLayout and add QLabel to it, with stretches on both sides
             innerLayout = QHBoxLayout()
-            innerLayout.addStretch(1)
+            #innerLayout.addStretch(1)
             innerLayout.addWidget(imageWidget)
-            innerLayout.addStretch(1)
+            #innerLayout.addStretch(1)
 
             # Create a QWidget and a QVBoxLayout to align QLabel at the top
             # labelLayout = QVBoxLayout()
