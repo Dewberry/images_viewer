@@ -65,6 +65,39 @@ class Image360Widget(QGLWidget):
         GLU.gluSphere(self.sphere, 1, 100, 100) # Draw the sphere
         GL.glPopMatrix()
 
+        # Crosshair
+        GL.glMatrixMode(GL.GL_PROJECTION)
+        GL.glPushMatrix()
+        GL.glLoadIdentity()
+        GLU.gluOrtho2D(0, self.width(), self.height(), 0)
+        GL.glMatrixMode(GL.GL_MODELVIEW)
+        GL.glPushMatrix()
+        GL.glLoadIdentity()
+        GL.glDisable(GL.GL_DEPTH_TEST)
+        GL.glColor3f(1.0, 1, 1)
+        GL.glLineWidth(4.0)
+        # GL.glBegin(GL.GL_LINES)
+        # GL.glVertex2f(self.width()/2 - 10, self.height()/2)
+        # GL.glVertex2f(self.width()/2 + 10, self.height()/2)
+        # GL.glVertex2f(self.width()/2, self.height()/2 - 10)
+        # GL.glVertex2f(self.width()/2, self.height()/2 + 10)
+
+        # posx, posy = 0,0
+        # sides = 32
+        # radius = 1
+        # GL.glBegin(GL.GL_POLYGON)
+        # for i in range(32, -1 -1):
+        #     cosine= radius * math.cos(i*2*math.pi/sides) + posx
+        #     sine  = radius * math.sin(i*2*math.pi/sides) + posy
+        #     GL.glVertex2f(cosine,sine)
+
+        GL.glEnd()
+        GL.glEnable(GL.GL_DEPTH_TEST)
+        GL.glPopMatrix()
+        GL.glMatrixMode(GL.GL_PROJECTION)
+        GL.glPopMatrix()
+        GL.glMatrixMode(GL.GL_MODELVIEW)
+
     def resizeGL(self, width, height):
         """
         Logic for when the window is resized
