@@ -1,8 +1,6 @@
 from PyQt5 import uic
-from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import QLabel, QScrollArea, QWidget, QVBoxLayout, QFrame, QHBoxLayout
-from PyQt5.QtCore import Qt
-import numpy as np
+from PyQt5.QtCore import QSettings
+from PyQt5.QtWidgets import QScrollArea, QVBoxLayout, QFrame, QHBoxLayout
 from qgis.core import QgsFeatureRequest
 from PIL import Image as PILImage
 import io
@@ -16,6 +14,9 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         super(ImageDialog, self).__init__(parent)
         self.setupUi(self)
 
+        self.settings = QSettings("QGIS3", "Images Viewer")
+
+
         self.iface = iface
         self.layer = self.iface.activeLayer()
         print(self.layer.name())
@@ -23,6 +24,11 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         # Connect the extentsChanged signal from the canvas to the refresh_on_move slot
         self.canvas.extentsChanged.connect(self.refresh_on_move)
+
+        # restore the dialog's position and size if exists
+        geometry = self.settings.value("geometry")
+        if geometry:
+            self.restoreGeometry(geometry)
 
         self.refresh_images()
 
@@ -40,6 +46,8 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         extent = self.canvas.extent()
         request = QgsFeatureRequest().setFilterRect(extent)
         features = self.layer.getFeatures(request)
+        filtered_count = 0
+
 
         row = 0
         col = 0
@@ -53,11 +61,6 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                 data = PILImage.open(url)
 
             imageWidget = ImageFactory.create_widget(data)
-            qimage = QImage(np.array(data), data.size[0], data.size[1], data.size[0] * 3, QImage.Format_RGB888)
-            pixmap = QPixmap.fromImage(qimage)
-            label = QLabel()
-            label.setPixmap(pixmap)
-            label.setAlignment(Qt.AlignCenter)  # Align pixmap in QLabel
 
             # scrollArea = QScrollArea()
             # scrollArea.setWidget(imageWidget)
@@ -83,6 +86,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             frame_layout.addLayout(innerLayout)
 
             self.gridLayout.addWidget(frame, row, col)
+            filtered_count += 1
 
             # Change the row and column for the next image
             col += 1
@@ -90,10 +94,20 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                 col = 0
                 row += 1
 
+        total_count = self.layer.featureCount()
+
+        # Set window title
+        self.setWindowTitle(f"{self.layer.name()} -- Features Total: {total_count}, Filtered: {filtered_count}")
+
+
         self.show()
 
 
     def closeEvent(self, event):
         # When window is closed, disconnect extentsChanged signal
         self.canvas.extentsChanged.disconnect(self.refresh_on_move)
+
+        # save the dialog's position and size
+        self.settings.setValue("geometry", self.saveGeometry())
+
         super().closeEvent(event)
