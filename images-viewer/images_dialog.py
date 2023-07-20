@@ -62,19 +62,19 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
             imageWidget = ImageFactory.create_widget(data)
 
-            scrollArea = QScrollArea()
-            scrollArea.setWidget(imageWidget)
+            # scrollArea = QScrollArea()
+            # scrollArea.setWidget(imageWidget)
 
             # Create a QHBoxLayout and add QLabel to it, with stretches on both sides
             innerLayout = QHBoxLayout()
-            innerLayout.addStretch(1)
-            innerLayout.addWidget(scrollArea)
-            innerLayout.addStretch(1)
+            #innerLayout.addStretch(1)
+            innerLayout.addWidget(imageWidget)
+            #innerLayout.addStretch(1)
 
             # Create a QWidget and a QVBoxLayout to align QLabel at the top
-            labelLayout = QVBoxLayout()
-            labelLayout.addLayout(innerLayout)
-            labelLayout.addStretch(1)  # Add stretch at the bottom to push QLabel up
+            # labelLayout = QVBoxLayout()
+            # labelLayout.addLayout(innerLayout)
+            # labelLayout.addStretch(1)  # Add stretch at the bottom to push QLabel up
 
             # Create a QFrame, add the label layout to it, and set a fixed size
             frame = QFrame()
@@ -83,7 +83,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             frame.setMinimumSize(400, 600)  # Set the fixed size of the frame
 
             frame_layout = QVBoxLayout(frame)
-            frame_layout.addLayout(labelLayout)
+            frame_layout.addLayout(innerLayout)
 
             self.gridLayout.addWidget(frame, row, col)
             filtered_count += 1
