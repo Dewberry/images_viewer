@@ -1,10 +1,12 @@
 from PyQt5 import uic
 from PyQt5.QtCore import QSettings
-from PyQt5.QtWidgets import QScrollArea, QVBoxLayout, QFrame, QHBoxLayout
+from PyQt5.QtWidgets import QScrollArea, QVBoxLayout, QFrame, QHBoxLayout, QPushButton
 from qgis.core import QgsFeatureRequest
 from PIL import Image as PILImage
 import io
 import os
+from functools import partial
+
 from .image_factory import ImageFactory
 
 Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_dialog.ui"))
@@ -85,6 +87,17 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             frame_layout = QVBoxLayout(frame)
             frame_layout.addLayout(innerLayout)
 
+            flashButton = QPushButton("Flash this feature")
+            flashButton.clicked.connect(partial(self.flash_feature, feature))
+
+            selectButton = QPushButton("Select this feature")
+            selectButton.clicked.connect(partial(self.select_feature, feature))
+
+            buttonLayout = QHBoxLayout()
+            buttonLayout.addWidget(flashButton)
+            buttonLayout.addWidget(selectButton)
+            frame_layout.addLayout(buttonLayout)
+
             self.gridLayout.addWidget(frame, row, col)
             filtered_count += 1
 
@@ -102,6 +115,11 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         self.show()
 
+    def flash_feature(self, feature):
+        self.canvas.flashFeatureIds(self.layer, [feature.id()])
+
+    def select_feature(self, feature):
+        self.layer.selectByIds([feature.id()])
 
     def closeEvent(self, event):
         # When window is closed, disconnect extentsChanged signal
