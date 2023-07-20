@@ -16,6 +16,7 @@ class ImageWidget(QOpenGLWidget):
         glBindTexture(GL_TEXTURE_2D, self.texture_id)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1) # Default alignment is 4, each pixel is 3 bytes so pad 1 byte
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.image_width, self.image_height, 0, GL_RGB, GL_UNSIGNED_BYTE, self.image.tobytes())  # Upload the image data to the texture
 
     def paintGL(self):
