@@ -41,7 +41,10 @@ class Image360Widget(QGLWidget):
         GL.glEnable(GL.GL_TEXTURE_2D) # Enable the 2D texturing
         self.texture = GL.glGenTextures(1) # Generate the texture ID
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture) # Binds the texture ID above to a 2D texture target
-        GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGB, self.image_width, self.image_height, 0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, self.image.tobytes()) # Upload the image data to the GPU
+        if self.image.mode == "RGBA":
+            GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, self.image_width, self.image_height, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, self.image.tobytes())
+        elif self.image.mode == "RGB":
+            GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGB, self.image_width, self.image_height, 0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, self.image.tobytes()) # Upload the image data to the GPU
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR) # Set the texture's magnification filter to linear filtering
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR) # Set the texture's minification filter to linear filtering
         self.sphere = GLU.gluNewQuadric() # Creates a new quadric to draw a sphere
