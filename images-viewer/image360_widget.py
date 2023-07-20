@@ -76,11 +76,11 @@ class Image360Widget(QGLWidget):
         GL.glDisable(GL.GL_DEPTH_TEST)
         GL.glColor3f(1.0, 1, 1)
         GL.glLineWidth(4.0)
-        # GL.glBegin(GL.GL_LINES)
-        # GL.glVertex2f(self.width()/2 - 10, self.height()/2)
-        # GL.glVertex2f(self.width()/2 + 10, self.height()/2)
-        # GL.glVertex2f(self.width()/2, self.height()/2 - 10)
-        # GL.glVertex2f(self.width()/2, self.height()/2 + 10)
+        GL.glBegin(GL.GL_LINES)
+        GL.glVertex2f(self.width()/2 - 10, self.height()/2)
+        GL.glVertex2f(self.width()/2 + 10, self.height()/2)
+        GL.glVertex2f(self.width()/2, self.height()/2 - 10)
+        GL.glVertex2f(self.width()/2, self.height()/2 + 10)
 
         # posx, posy = 0,0
         # sides = 32
