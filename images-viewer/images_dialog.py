@@ -1,5 +1,8 @@
 from PyQt5 import uic
-from PyQt5.QtWidgets import QScrollArea, QVBoxLayout, QFrame, QHBoxLayout
+from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtWidgets import QLabel, QScrollArea, QWidget, QVBoxLayout, QFrame, QHBoxLayout
+from PyQt5.QtCore import Qt
+import numpy as np
 from qgis.core import QgsFeatureRequest
 from PIL import Image as PILImage
 import io
@@ -50,20 +53,25 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                 data = PILImage.open(url)
 
             imageWidget = ImageFactory.create_widget(data)
+            qimage = QImage(np.array(data), data.size[0], data.size[1], data.size[0] * 3, QImage.Format_RGB888)
+            pixmap = QPixmap.fromImage(qimage)
+            label = QLabel()
+            label.setPixmap(pixmap)
+            label.setAlignment(Qt.AlignCenter)  # Align pixmap in QLabel
 
-            scrollArea = QScrollArea()
-            scrollArea.setWidget(imageWidget)
+            # scrollArea = QScrollArea()
+            # scrollArea.setWidget(imageWidget)
 
             # Create a QHBoxLayout and add QLabel to it, with stretches on both sides
             innerLayout = QHBoxLayout()
             innerLayout.addStretch(1)
-            innerLayout.addWidget(scrollArea)
+            innerLayout.addWidget(imageWidget)
             innerLayout.addStretch(1)
 
             # Create a QWidget and a QVBoxLayout to align QLabel at the top
-            labelLayout = QVBoxLayout()
-            labelLayout.addLayout(innerLayout)
-            labelLayout.addStretch(1)  # Add stretch at the bottom to push QLabel up
+            # labelLayout = QVBoxLayout()
+            # labelLayout.addLayout(innerLayout)
+            # labelLayout.addStretch(1)  # Add stretch at the bottom to push QLabel up
 
             # Create a QFrame, add the label layout to it, and set a fixed size
             frame = QFrame()
@@ -72,7 +80,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             frame.setMinimumSize(400, 600)  # Set the fixed size of the frame
 
             frame_layout = QVBoxLayout(frame)
-            frame_layout.addLayout(labelLayout)
+            frame_layout.addLayout(innerLayout)
 
             self.gridLayout.addWidget(frame, row, col)
 
