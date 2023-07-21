@@ -15,12 +15,11 @@ from .image_factory import ImageFactory
 Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_dialog.ui"))
 
 
-def create_tool_button(icon_name, tooltip_text, callback, size=16):
+def create_tool_button(icon_name, tooltip_text, callback):
     button = QToolButton()
     button.setIcon(QgsApplication.getThemeIcon(icon_name))
     button.setToolTip(tooltip_text)
     button.setAutoRaise(True)
-    button.setIconSize(QSize(size, size))
     button.clicked.connect(callback)
 
     return button
@@ -103,6 +102,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
 
             toolbar = QToolBar()
+            toolbar.setIconSize(QSize(20, 20))
 
             selectButton = create_tool_button('mIconSelected.svg', "Select this feature", partial(self.select_feature, feature))
             toolbar.addWidget(selectButton)
