@@ -1,8 +1,10 @@
 from PyQt5 import uic
 from PyQt5.QtCore import QSettings
 from PyQt5.QtCore import QSize
+from PyQt5.QtGui import QIcon
 
-from PyQt5.QtWidgets import QScrollArea, QVBoxLayout, QFrame, QHBoxLayout, QToolButton, QToolBar
+
+from PyQt5.QtWidgets import QVBoxLayout, QFrame, QHBoxLayout, QToolButton, QToolBar
 
 from qgis.core import QgsFeatureRequest, QgsApplication
 from PIL import Image as PILImage
@@ -37,8 +39,14 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         print(self.layer.name())
         self.canvas = self.iface.mapCanvas()
 
-        # Connect the extentsChanged signal from the canvas to the refresh_on_move slot
-        self.canvas.extentsChanged.connect(self.refresh_on_move)
+        self.comboBox.addItem(QIcon(QgsApplication.getThemeIcon('mActionOpenTableVisible.svg')), 'Show Visible Features') # index 0
+        self.comboBox.addItem(QIcon(QgsApplication.getThemeIcon('mActionOpenTableSelected.svg')), 'Show Selected Features') # index 1
+        self.comboBox.addItem(QIcon(QgsApplication.getThemeIcon('mActionOpenTable.svg')), 'Show All Features') # index 2
+        self.comboBox.setIconSize(QSize(20, 20))  # set icon
+
+        self.comboBox.currentIndexChanged.connect(self.handle_combobox_change)
+        self.combo_box_index = 0 # Start with visible
+        self.canvas.extentsChanged.connect(self.refresh_images)
 
         # restore the dialog's position and size if exists
         geometry = self.settings.value("geometry")
@@ -47,8 +55,18 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         self.refresh_images()
 
-    def refresh_on_move(self):
-        # This method will be called when the canvas extent is changed
+    def handle_combobox_change(self, index):
+        if self.combo_box_index == 0:
+            self.canvas.extentsChanged.disconnect(self.refresh_images)
+        elif self.combo_box_index == 1:
+            self.layer.selectionChanged.disconnect(self.refresh_images)
+
+        if index == 0:
+            self.canvas.extentsChanged.connect(self.refresh_images)
+        elif index == 1:
+            self.layer.selectionChanged.connect(self.refresh_images)
+
+        self.combo_box_index = index
         self.refresh_images()
 
     def refresh_images(self):
@@ -58,11 +76,18 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         for i in reversed(range(self.gridLayout.count())):
             self.gridLayout.itemAt(i).widget().setParent(None)
 
-        extent = self.canvas.extent()
-        request = QgsFeatureRequest().setFilterRect(extent)
-        features = self.layer.getFeatures(request)
-        filtered_count = 0
 
+        if self.combo_box_index == 0:
+            extent = self.canvas.extent()
+            request = QgsFeatureRequest().setFilterRect(extent)
+            features = self.layer.getFeatures(request)
+        elif self.combo_box_index == 1:
+            selected_ids = self.layer.selectedFeatureIds()
+            features = self.layer.getFeatures(QgsFeatureRequest().setFilterFids(selected_ids))
+        elif self.combo_box_index == 2:
+            features = self.layer.getFeatures()
+
+        filtered_count = 0
 
         row = 0
         col = 0
@@ -157,8 +182,11 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.canvas.zoomToFeatureIds(self.layer, [feature.id()])
 
     def closeEvent(self, event):
-        # When window is closed, disconnect extentsChanged signal
-        self.canvas.extentsChanged.disconnect(self.refresh_on_move)
+        # When window is closed, disconnect  signals
+        if self.combo_box_index == 0:
+            self.canvas.extentsChanged.disconnect(self.refresh_images)
+        elif self.combo_box_index == 1:
+            self.layer.selectionChanged.disconnect(self.refresh_images)
 
         # save the dialog's position and size
         self.settings.setValue("geometry", self.saveGeometry())

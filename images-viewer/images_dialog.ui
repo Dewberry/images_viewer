@@ -36,6 +36,16 @@
      </widget>
     </widget>
    </item>
+   <item>
+    <widget class="QComboBox" name="comboBox">
+      <property name="sizePolicy">
+        <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+        </sizepolicy>
+      </property>
+    </widget>
+   </item>
   </layout>
  </widget>
  <resources/>
