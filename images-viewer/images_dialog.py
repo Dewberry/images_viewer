@@ -102,20 +102,6 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
             imageWidget = ImageFactory.create_widget(data)
 
-            # scrollArea = QScrollArea()
-            # scrollArea.setWidget(imageWidget)
-
-            # Create a QHBoxLayout and add QLabel to it, with stretches on both sides
-            innerLayout = QHBoxLayout()
-            #innerLayout.addStretch(1)
-            innerLayout.addWidget(imageWidget)
-            #innerLayout.addStretch(1)
-
-            # Create a QWidget and a QVBoxLayout to align QLabel at the top
-            # labelLayout = QVBoxLayout()
-            # labelLayout.addLayout(innerLayout)
-            # labelLayout.addStretch(1)  # Add stretch at the bottom to push QLabel up
-
             # Create a QFrame, add the label layout to it, and set a fixed size
             frame = QFrame()
             frame.setFrameStyle(QFrame.Box | QFrame.Plain)
@@ -123,8 +109,12 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             frame.setMinimumSize(400, 600)  # Set the fixed size of the frame
 
             frame_layout = QVBoxLayout(frame)
-            frame_layout.addLayout(innerLayout)
+            frame_layout.addWidget(imageWidget)
+            frame_layout.setContentsMargins(0, 0, 0, 0) # (left, top, right, bottom)
+            frame_layout.setSpacing(2) # (left, top, right, bottom)
 
+            toolbar_layout = QHBoxLayout()
+            toolbar_layout.setContentsMargins(0, 0, 0, 0) # (left, top, right, bottom)
 
             toolbar = QToolBar()
             toolbar.setIconSize(QSize(20, 20))
@@ -144,7 +134,10 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             flashButton = create_tool_button('mActionHighlightFeature.svg', "Flash this feature", partial(self.flash_feature, feature))
             toolbar.addWidget(flashButton)
 
-            frame_layout.addWidget(toolbar)
+            toolbar_layout.addWidget(toolbar)
+            toolbar_layout.addStretch()
+
+            frame_layout.addLayout(toolbar_layout)
 
             self.gridLayout.addWidget(frame, row, col)
             filtered_count += 1
@@ -159,7 +152,6 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         # Set window title
         self.setWindowTitle(f"{self.layer.name()} -- Features Total: {total_count}, Filtered: {filtered_count}")
-
 
         self.show()
 
