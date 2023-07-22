@@ -144,6 +144,7 @@ class Image360Widget(QGLWidget):
         """
         Changes the zoom on the 360 image, set view accordingly
         """
+        event.accept()  # Consume the event here to prevent propagation
         delta = event.angleDelta().y()
         self.fov -= delta * 0.1
         self.fov = max(30, min(self.fov, 90))

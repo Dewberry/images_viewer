@@ -11,7 +11,7 @@ class ImageWidget(QOpenGLWidget):
 
     def initializeGL(self):
         glEnable(GL_TEXTURE_2D)
-        glClearColor(0.0, 0.0, 0.0, 1.0)
+        glClearColor(1.0, 1.0, 1.0, 1.0)
         self.texture_id = glGenTextures(1) # Create an OpenGL texture
         glBindTexture(GL_TEXTURE_2D, self.texture_id)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
