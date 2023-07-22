@@ -1,61 +1,44 @@
-from OpenGL.GL import *
-from qgis.PyQt.QtWidgets import QOpenGLWidget
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QImage, QPixmap, QPainter
+from PyQt5.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PIL import Image
+from io import BytesIO
 
-class ImageWidget(QOpenGLWidget):
-    def __init__(self, image):
-        super().__init__()
-        self.image = image
-        self.image_width, self.image_height = self.image.size
-        self.texture_id = 0
+class ImageLabel(QLabel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.myPixmap = QPixmap()
 
-    def initializeGL(self):
-        glEnable(GL_TEXTURE_2D)
-        glEnable(GL_BLEND)
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        glClearColor(1.0, 1.0, 1.0, 1.0)
-        self.texture_id = glGenTextures(1) # Create an OpenGL texture
-        glBindTexture(GL_TEXTURE_2D, self.texture_id)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-        if self.image.mode == 'RGBA':
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, self.image_width, self.image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, self.image.tobytes())
-        elif self.image.mode == 'RGB':
-            glPixelStorei(GL_UNPACK_ALIGNMENT, 1)  # Default alignment is 4, each pixel is 3 bytes so pad 1 byte
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.image_width, self.image_height, 0, GL_RGB, GL_UNSIGNED_BYTE, self.image.tobytes())  # Upload the image data to the texture
+    def setPixmap(self, pixmap):
+        self.myPixmap = pixmap
+        self.updatePixmap()
 
-    def paintGL(self):
-        glClear(GL_COLOR_BUFFER_BIT)
-        glBindTexture(GL_TEXTURE_2D, self.texture_id)
+    def updatePixmap(self):
+        w = min(self.myPixmap.width(), self.width())
+        h = min(self.myPixmap.height(), self.height())
+        super().setPixmap(self.myPixmap.scaled(w, h, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self.setAlignment(Qt.AlignCenter)
 
-        texture_aspect_ratio = float(self.image_width) / float(self.image_height)
-        viewport_aspect_ratio = float(self.width()) / float(self.height())
+    def resizeEvent(self, event):
+        if not self.myPixmap.isNull() and self.width() and self.height():
+            self.updatePixmap()
 
-        # Set up the textured quad with preserved aspect ratio
-        if texture_aspect_ratio > viewport_aspect_ratio:
-            # Texture is wider than viewport, adjust quad's height
-            quad_width = 2.0
-            quad_height = (self.width() / texture_aspect_ratio)/self.height() * 2.0
-        else:
-            # Texture is taller than viewport, adjust quad's width
-            quad_height = 2.0
-            quad_width = (self.height() * texture_aspect_ratio)/self.width() * 2.0
+class ImageWidget(QWidget):
+    def __init__(self, image_data: Image.Image, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet("border-width: 0px; margin: 0px; background-color: white")
 
-        quad_left = -quad_width / 2.0
-        quad_right = quad_width / 2.0
-        quad_bottom = -quad_height / 2.0
-        quad_top = quad_height / 2.0
+        # Convert the PIL Image object to bytes
+        image_io = BytesIO()
+        image_data.save(image_io, format='PNG')
+        image_data = image_io.getvalue()
 
-        # Set up the textured quad with adjusted vertex positions
-        glBegin(GL_QUADS)
-        glTexCoord2f(0.0, 1.0)  # Bottom-left
-        glVertex2f(quad_left, quad_bottom)
-        glTexCoord2f(1.0, 1.0)  # Bottom-right
-        glVertex2f(quad_right, quad_bottom)
-        glTexCoord2f(1.0, 0.0)  # Top-right
-        glVertex2f(quad_right, quad_top)
-        glTexCoord2f(0.0, 0.0)  # Top-left
-        glVertex2f(quad_left, quad_top)
-        glEnd()
+        image = QImage.fromData(image_data)
 
-    def resizeGL(self, width, height):
-        glViewport(0, 0, width, height)
+        self.label = ImageLabel()
+        self.label.setPixmap(QPixmap.fromImage(image))
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.label)
+        layout.setContentsMargins(0,0,0,0)
+        self.setLayout(layout)
