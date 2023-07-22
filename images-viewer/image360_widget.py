@@ -32,6 +32,9 @@ class Image360Widget(QGLWidget):
         self.fov = 60
         self.moving = False
         self.direction = 0.0
+        self.mouse_x = 0
+        self.mouse_y = 0
+        self.is_mouse_pressed = False
 
     def initializeGL(self):
         """
@@ -114,18 +117,22 @@ class Image360Widget(QGLWidget):
         if event.button() == QtCore.Qt.LeftButton:
             self.mouse_x, self.mouse_y = event.pos().x(), event.pos().y()
             self.setCursor(QtCore.Qt.ClosedHandCursor)
+            self.is_mouse_pressed = True  # Set the flag to indicate the mouse is pressed
 
     def mouseReleaseEvent(self, event):
         if event.button() == QtCore.Qt.LeftButton:
             self.setCursor(QtCore.Qt.OpenHandCursor)
-            self.moving = False
+            self.is_mouse_pressed = False  # Reset the flag when the mouse is released
+
+
 
     def mouseMoveEvent(self, event):
         """
         Track the coordinate change rate and inertia for rotating
         """
-        self.moving = True
-        if self.moving:
+        # Pan only if the mouse is pressed (is_mouse_pressed is True)
+        dx, dy = 0, 0
+        if self.is_mouse_pressed:
             dx = event.pos().x() - self.mouse_x
             dy = event.pos().y() - self.mouse_y
             dx *= 0.05
