@@ -1,10 +1,14 @@
+from PyQt5.QtCore import Qt
+
 from PyQt5 import uic
 from PyQt5.QtCore import QSettings
 from PyQt5.QtCore import QSize
 from PyQt5.QtGui import QIcon
+from qgis.core import QgsExpression, QgsExpressionContext
 
 
-from PyQt5.QtWidgets import QVBoxLayout, QFrame, QHBoxLayout, QToolButton, QToolBar
+
+from PyQt5.QtWidgets import QVBoxLayout, QFrame, QHBoxLayout, QToolButton, QToolBar, QLabel, QSizePolicy
 
 from qgis.core import QgsFeatureRequest, QgsApplication
 from PIL import Image as PILImage
@@ -32,7 +36,10 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.setupUi(self)
 
         self.settings = QSettings("QGIS3", "Images Viewer")
-
+        # restore the dialog's position and size if exists
+        geometry = self.settings.value("geometry")
+        if geometry:
+            self.restoreGeometry(geometry)
 
         self.iface = iface
         self.layer = self.iface.activeLayer()
@@ -48,10 +55,8 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.combo_box_index = 0 # Start with visible
         self.canvas.extentsChanged.connect(self.refresh_images)
 
-        # restore the dialog's position and size if exists
-        geometry = self.settings.value("geometry")
-        if geometry:
-            self.restoreGeometry(geometry)
+        display_expression = self.layer.displayExpression()
+        self.feature_title_expression = QgsExpression(display_expression)
 
         self.refresh_images()
 
@@ -71,6 +76,9 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
     def refresh_images(self):
         print("Refreshing images...")
+
+        context = QgsExpressionContext()
+
 
         # Clear all widgets from the grid layout
         for i in reversed(range(self.gridLayout.count())):
@@ -92,6 +100,28 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         row = 0
         col = 0
         for feature in features:
+
+            # Create a QFrame, add the label layout to it, and set a fixed size
+            frame = QFrame()
+            frame.setFrameStyle(QFrame.Box | QFrame.Plain)
+            frame.setStyleSheet("QFrame {color: #BEBEBE;}")
+            frame.setMinimumSize(400, 600)  # Set the fixed size of the frame
+
+            frame_layout = QVBoxLayout(frame)
+            frame_layout.setContentsMargins(0, 0, 0, 0) # (left, top, right, bottom)
+            frame_layout.setSpacing(2) # (left, top, right, bottom)
+
+            context.setFeature(feature)
+            feature_title = self.feature_title_expression.evaluate(context)
+
+            feature_title_label = QLabel()
+            feature_title_label.setText(feature_title)
+            feature_title_label.setStyleSheet("text-align:center; font-size:13px; font: bold; color: black; background-color: white;  padding: 5px;")
+            feature_title_label.setAlignment(Qt.AlignCenter)
+            feature_title_label.setWordWrap(True)
+
+            frame_layout.addWidget(feature_title_label)
+
             image_source = "bytes" # or "link360"
             if image_source == "bytes":
                 blob = feature["bytes"]
@@ -101,17 +131,9 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                 data = PILImage.open(url)
 
             imageWidget = ImageFactory.create_widget(data)
+            imageWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-            # Create a QFrame, add the label layout to it, and set a fixed size
-            frame = QFrame()
-            frame.setFrameStyle(QFrame.Box | QFrame.Plain)
-            frame.setStyleSheet("QFrame {color: #BEBEBE;}")
-            frame.setMinimumSize(400, 600)  # Set the fixed size of the frame
-
-            frame_layout = QVBoxLayout(frame)
             frame_layout.addWidget(imageWidget)
-            frame_layout.setContentsMargins(0, 0, 0, 0) # (left, top, right, bottom)
-            frame_layout.setSpacing(2) # (left, top, right, bottom)
 
             toolbar_layout = QHBoxLayout()
             toolbar_layout.setContentsMargins(0, 0, 0, 0) # (left, top, right, bottom)
@@ -142,7 +164,6 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             self.gridLayout.addWidget(frame, row, col)
             filtered_count += 1
 
-            # Change the row and column for the next image
             col += 1
             if col > 2:  # Change this number to adjust how many images per row
                 col = 0
