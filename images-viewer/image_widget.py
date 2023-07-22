@@ -1,4 +1,3 @@
-from PIL import Image
 from OpenGL.GL import *
 from qgis.PyQt.QtWidgets import QOpenGLWidget
 
@@ -11,6 +10,8 @@ class ImageWidget(QOpenGLWidget):
 
     def initializeGL(self):
         glEnable(GL_TEXTURE_2D)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glClearColor(1.0, 1.0, 1.0, 1.0)
         self.texture_id = glGenTextures(1) # Create an OpenGL texture
         glBindTexture(GL_TEXTURE_2D, self.texture_id)
@@ -19,7 +20,7 @@ class ImageWidget(QOpenGLWidget):
         if self.image.mode == 'RGBA':
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, self.image_width, self.image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, self.image.tobytes())
         elif self.image.mode == 'RGB':
-            glPixelStorei(GL_UNPACK_ALIGNMENT, 1) # Default alignment is 4, each pixel is 3 bytes so pad 1 byte
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1)  # Default alignment is 4, each pixel is 3 bytes so pad 1 byte
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.image_width, self.image_height, 0, GL_RGB, GL_UNSIGNED_BYTE, self.image.tobytes())  # Upload the image data to the texture
 
     def paintGL(self):
