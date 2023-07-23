@@ -43,6 +43,8 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         self.iface = iface
         self.layer = self.iface.activeLayer()
+        if not self.layer:
+            raise ValueError("Layer is not defined")
         print(self.layer.name())
         self.canvas = self.iface.mapCanvas()
 
@@ -90,11 +92,9 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         context = QgsExpressionContext()
 
-
         # Clear all widgets from the grid layout
         for i in reversed(range(self.gridLayout.count())):
             self.gridLayout.itemAt(i).widget().setParent(None)
-
 
         if self.b_combo_box_index == 0:
             extent = self.canvas.extent()
@@ -129,11 +129,10 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                 if not data:
                     continue
 
-                # Create a QFrame, add the label layout to it, and set a fixed size
                 frame = QFrame()
                 frame.setFrameStyle(QFrame.Box | QFrame.Plain)
                 frame.setStyleSheet("QFrame {color: #BEBEBE;}")
-                frame.setMinimumSize(400, 600)  # Set the fixed size of the frame
+                frame.setMinimumSize(400, 600)
 
                 frame_layout = QVBoxLayout(frame)
                 frame_layout.setContentsMargins(0, 0, 0, 0) # (left, top, right, bottom)
@@ -222,6 +221,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
     def closeEvent(self, event):
         # When window is closed, disconnect  signals
+        self.layer.displayExpressionChanged.disconnect(self.refresh_display_expression)
         if self.b_combo_box_index == 0:
             self.canvas.extentsChanged.disconnect(self.refresh_images)
         elif self.b_combo_box_index == 1:
