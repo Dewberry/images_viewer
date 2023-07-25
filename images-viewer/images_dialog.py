@@ -72,27 +72,28 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         # can't use builtin QgsFieldProxyModel.filters because there is no binary filter
         # https://github.com/qgis/QGIS/issues/53940
-        filtered_fields = QgsFields()
+        self.filtered_fields = QgsFields()
         for field in self.layer.fields():
-            print(type(field))
             if field.type() in (QVariant.String, QVariant.ByteArray):
-                filtered_fields.append(field=field)
+                self.filtered_fields.append(field=field)
 
-        self.fieldComboBox.setFields(filtered_fields)
+        self.fieldComboBox.setFields(self.filtered_fields)
         self.fieldComboBox.setAllowEmptyFieldName(True)
         self.fieldComboBox.fieldChanged.connect(self.fieldChanged)
-
+        self.fieldComboBox.setToolTip('Select field containing image data or url')
         self.fieldComboBox.setField(self.image_field) # this will call referesh method
 
     def fieldChanged(self, fieldName):
         self.image_field = fieldName
-        print(not self.image_field)
         if not self.image_field:
             self.fieldComboBox.setStyleSheet("QComboBox { background-color: #3399ff; }")
-            self.fieldComboBox.setToolTip('Select field containing image data or url')
         else:
             self.fieldComboBox.setStyleSheet("")
+            field_index = self.filtered_fields.indexFromName(fieldName)
+            field = self.filtered_fields[field_index]
+            self.field_type = field.type()
 
+        print(self.field_type)
         self.refresh_images()
 
     def refresh_display_expression(self):
@@ -150,9 +151,12 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
                 # doing this at the top so that if this fails we short circuit
                 data = None
-                blob = feature[self.image_field]
-                if blob:
-                    data = PILImage.open(io.BytesIO(blob))
+                field_content = feature[self.image_field]
+                if field_content:
+                    if self.field_type == QVariant.ByteArray:
+                        data = PILImage.open(io.BytesIO(field_content))
+                    elif self.field_type == QVariant.String:
+                        data = PILImage.open(field_content)
 
                 if not data:
                     continue
