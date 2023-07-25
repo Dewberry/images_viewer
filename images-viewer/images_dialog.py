@@ -1,10 +1,9 @@
 from PyQt5.QtCore import Qt
 
 from PyQt5 import uic
-from PyQt5.QtCore import QSettings
-from PyQt5.QtCore import QSize
+from PyQt5.QtCore import QSettings, QVariant, QSize
 from PyQt5.QtGui import QIcon
-from qgis.core import QgsExpression, QgsExpressionContext
+from qgis.core import QgsExpression, QgsExpressionContext, QgsFields
 
 import time
 
@@ -35,17 +34,23 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         super(ImageDialog, self).__init__(parent)
         self.setupUi(self)
 
-        self.settings = QSettings("QGIS3", "Images Viewer")
-        # restore the dialog's position and size if exists
-        geometry = self.settings.value("geometry")
-        if geometry:
-            self.restoreGeometry(geometry)
-
         self.iface = iface
         self.layer = self.iface.activeLayer()
         if not self.layer:
             raise ValueError("Layer is not defined")
         print(self.layer.name())
+
+        # restore the dialog's position and size if exists, also restore image_field for this layer
+        self.settings = QSettings("QGIS3 - Images Viewer", self.layer.name())
+        self.default_settings = QSettings("QGIS3 - Images Viewer", "")
+        if self.settings.contains("geometry"):
+            self.restoreGeometry(self.settings.value("geometry"))
+            self.image_field = self.settings.value("imageField", "")
+        else:
+            self.image_field = ""
+            if self.default_settings.contains("geometry"):
+                self.restoreGeometry(self.default_settings.value("geometry"))
+
         self.canvas = self.iface.mapCanvas()
 
         refreshButton = create_tool_button('mActionRefresh.svg', "Refresh", self.refresh_images)
@@ -65,6 +70,30 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.layer.displayExpressionChanged.connect(self.refresh_display_expression)
         self.feature_title_expression = QgsExpression(display_expression)
 
+        # can't use builtin QgsFieldProxyModel.filters because there is no binary filter
+        # https://github.com/qgis/QGIS/issues/53940
+        self.filtered_fields = QgsFields()
+        for field in self.layer.fields():
+            if field.type() in (QVariant.String, QVariant.ByteArray):
+                self.filtered_fields.append(field=field)
+
+        self.fieldComboBox.setFields(self.filtered_fields)
+        self.fieldComboBox.setAllowEmptyFieldName(True)
+        self.fieldComboBox.fieldChanged.connect(self.fieldChanged)
+        self.fieldComboBox.setToolTip('Select field containing image data or url')
+        self.fieldComboBox.setField(self.image_field) # this will call referesh method
+
+    def fieldChanged(self, fieldName):
+        self.image_field = fieldName
+        if not self.image_field:
+            self.fieldComboBox.setStyleSheet("QComboBox { background-color: #3399ff; }")
+        else:
+            self.fieldComboBox.setStyleSheet("")
+            field_index = self.filtered_fields.indexFromName(fieldName)
+            field = self.filtered_fields[field_index]
+            self.field_type = field.type()
+
+        print(self.field_type)
         self.refresh_images()
 
     def refresh_display_expression(self):
@@ -87,6 +116,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.refresh_images()
 
     def refresh_images(self):
+
         start_time = time.time()  # Start time before the operation
         print("Refreshing images...")
 
@@ -95,6 +125,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         # Clear all widgets from the grid layout
         for i in reversed(range(self.gridLayout.count())):
             self.gridLayout.itemAt(i).widget().setParent(None)
+
 
         if self.b_combo_box_index == 0:
             extent = self.canvas.extent()
@@ -113,18 +144,19 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         for feature in features:
             filtered_count += 1
 
+            if not self.image_field:
+                continue
+
             try:
+
                 # doing this at the top so that if this fails we short circuit
-                image_source = "bytes" # or "link360"
                 data = None
-                if image_source == "bytes":
-                    blob = feature["bytes"]
-                    if blob:
-                        data = PILImage.open(io.BytesIO(blob))
-                else:
-                    url = feature['link360']
-                    if url:
-                        data = PILImage.open(url)
+                field_content = feature[self.image_field]
+                if field_content:
+                    if self.field_type == QVariant.ByteArray:
+                        data = PILImage.open(io.BytesIO(field_content))
+                    elif self.field_type == QVariant.String:
+                        data = PILImage.open(field_content)
 
                 if not data:
                     continue
@@ -229,5 +261,9 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         # save the dialog's position and size
         self.settings.setValue("geometry", self.saveGeometry())
+        self.default_settings.setValue("geometry", self.saveGeometry())
+
+        # remember field name
+        self.settings.setValue("imageField", self.image_field)
 
         super().closeEvent(event)
