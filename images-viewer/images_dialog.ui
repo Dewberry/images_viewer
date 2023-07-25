@@ -23,7 +23,7 @@
             </size>
         </property>
         <property name="windowTitle">
-            <string>Main Dialog</string>
+            <string>Images Viewer</string>
         </property>
         <layout class="QVBoxLayout" name="mainVerticalLayout">
             <property name="margin">
@@ -100,7 +100,7 @@
                         </spacer>
                     </item>
                     <item>
-                        <widget class="QgsMapLayerComboBox" name="childLayerComboBox" />
+                        <widget class="QComboBox" name="relationComboBox" />
                     </item>
                     <item>
                         <widget class="QgsFieldComboBox" name="fieldComboBox" />
@@ -114,11 +114,6 @@
             <class>QgsFieldComboBox</class>
             <extends>QComboBox</extends>
             <header>qgsfieldcombobox.h</header>
-        </customwidget>
-        <customwidget>
-            <class>QgsMapLayerComboBox</class>
-            <extends>QComboBox</extends>
-            <header>qgsmaplayercombobox.h</header>
         </customwidget>
     </customwidgets>
     <resources />

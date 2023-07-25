@@ -3,7 +3,7 @@ from PyQt5.QtCore import Qt
 from PyQt5 import uic
 from PyQt5.QtCore import QSettings, QVariant, QSize
 from PyQt5.QtGui import QIcon
-from qgis.core import QgsExpression, QgsExpressionContext, QgsFields
+from qgis.core import QgsExpression, QgsExpressionContext, QgsFields, QgsProject
 
 import time
 
@@ -38,7 +38,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.layer = self.iface.activeLayer()
         if not self.layer:
             raise ValueError("Layer is not defined")
-        print(self.layer.name())
+        self.setWindowTitle(self.layer.name())
 
         # restore the dialog's position and size if exists, also restore image_field for this layer
         self.settings = QSettings("QGIS3 - Images Viewer", self.layer.name())
@@ -46,8 +46,10 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         if self.settings.contains("geometry"):
             self.restoreGeometry(self.settings.value("geometry"))
             self.image_field = self.settings.value("imageField", "")
+            self.relation_index = self.settings.value("relationIndex", 0)
         else:
             self.image_field = ""
+            self.relation_index = 0
             if self.default_settings.contains("geometry"):
                 self.restoreGeometry(self.default_settings.value("geometry"))
 
@@ -70,22 +72,51 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.layer.displayExpressionChanged.connect(self.refresh_display_expression)
         self.feature_title_expression = QgsExpression(display_expression)
 
-        # can't use builtin QgsFieldProxyModel.filters because there is no binary filter
-        # https://github.com/qgis/QGIS/issues/53940
-        self.filtered_fields = QgsFields()
-        for field in self.layer.fields():
-            if field.type() in (QVariant.String, QVariant.ByteArray):
-                self.filtered_fields.append(field=field)
+        self.relations = QgsProject.instance().relationManager().referencedRelations(self.layer)
+        self.relationComboBox.addItems([""] + [rel.name() for rel in self.relations])
+        self.relationComboBox.currentIndexChanged.connect(self.relationChanged)
+        self.relationComboBox.setToolTip('Select relationship')
 
-        self.fieldComboBox.setFields(self.filtered_fields)
+        self.filtered_fields = QgsFields()
+
         self.fieldComboBox.setAllowEmptyFieldName(True)
         self.fieldComboBox.fieldChanged.connect(self.fieldChanged)
         self.fieldComboBox.setToolTip('Select field containing image data or url')
-        self.fieldComboBox.setField(self.image_field) # this will call referesh method
+
+        if self.relation_index == 0:
+            # initially comboBox current index = 0
+            # manually call relationChanged() as setCurrentIndex wont call it as signal hasn't chaged
+            self.relationChanged(0)
+        else:
+            self.relationComboBox.setCurrentIndex(self.relation_index)
+
+    def relationChanged(self, index):
+
+        self.filtered_fields.clear()
+        self.fieldComboBox.clear()
+        self.relation_index = index
+
+        if (not index) or (index > len(self.relations)): # if index 0 or not within len of relations, this can happen if settings are incorrectly read
+            image_layer = self.layer
+        else:
+            image_layer = self.relations[index-1].referencingLayer()
+
+        # can't use builtin QgsFieldProxyModel.filters because there is no binary filter
+        # https://github.com/qgis/QGIS/issues/53940
+        for field in image_layer.fields():
+            if field.type() in (QVariant.String, QVariant.ByteArray):
+                self.filtered_fields.append(field=field)
+        self.fieldComboBox.setFields(self.filtered_fields)
+
+        if self.image_field not in [f.name() for f in self.filtered_fields]:
+            self.image_field = ""
+            self.fieldChanged("") # this will call referesh method
+        else:
+            self.fieldComboBox.setField(self.image_field) # this will call referesh method
 
     def fieldChanged(self, fieldName):
         self.image_field = fieldName
-        if not self.image_field:
+        if not fieldName:
             self.fieldComboBox.setStyleSheet("QComboBox { background-color: #3399ff; }")
         else:
             self.fieldComboBox.setStyleSheet("")
@@ -93,7 +124,6 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             field = self.filtered_fields[field_index]
             self.field_type = field.type()
 
-        print(self.field_type)
         self.refresh_images()
 
     def refresh_display_expression(self):
@@ -221,7 +251,8 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                     row += 1
 
             except Exception as e:
-                self.iface.messageBar().pushMessage("Image Viewer", f"Feature: {feature.id()}: {str(e)}", level=1, duration=3)
+                print(e.__class__)
+                self.iface.messageBar().pushMessage("Image Viewer", f"{e.__class__.__name__}: Feature # {feature.id()}: {str(e)}", level=1, duration=3)
 
 
         total_count = self.layer.featureCount()
@@ -263,7 +294,8 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.settings.setValue("geometry", self.saveGeometry())
         self.default_settings.setValue("geometry", self.saveGeometry())
 
-        # remember field name
+        # remember configuration
         self.settings.setValue("imageField", self.image_field)
+        self.settings.setValue("relationIndex", self.relation_index)
 
         super().closeEvent(event)
