@@ -1,10 +1,9 @@
 from PyQt5.QtCore import Qt
 
 from PyQt5 import uic
-from PyQt5.QtCore import QSettings
-from PyQt5.QtCore import QSize
+from PyQt5.QtCore import QSettings, QVariant, QSize
 from PyQt5.QtGui import QIcon
-from qgis.core import QgsExpression, QgsExpressionContext
+from qgis.core import QgsExpression, QgsExpressionContext, QgsFields
 
 import time
 
@@ -71,8 +70,15 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.layer.displayExpressionChanged.connect(self.refresh_display_expression)
         self.feature_title_expression = QgsExpression(display_expression)
 
+        # can't use builtin QgsFieldProxyModel.filters because there is no binary filter
+        # https://github.com/qgis/QGIS/issues/53940
+        filtered_fields = QgsFields()
+        for field in self.layer.fields():
+            print(type(field))
+            if field.type() in (QVariant.String, QVariant.ByteArray):
+                filtered_fields.append(field=field)
 
-        self.fieldComboBox.setLayer(self.layer)
+        self.fieldComboBox.setFields(filtered_fields)
         self.fieldComboBox.setAllowEmptyFieldName(True)
         self.fieldComboBox.fieldChanged.connect(self.fieldChanged)
 
