@@ -35,17 +35,23 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         super(ImageDialog, self).__init__(parent)
         self.setupUi(self)
 
-        self.settings = QSettings("QGIS3", "Images Viewer")
-        # restore the dialog's position and size if exists
-        geometry = self.settings.value("geometry")
-        if geometry:
-            self.restoreGeometry(geometry)
-
         self.iface = iface
         self.layer = self.iface.activeLayer()
         if not self.layer:
             raise ValueError("Layer is not defined")
         print(self.layer.name())
+
+        # restore the dialog's position and size if exists, also restore image_field for this layer
+        self.settings = QSettings("QGIS3 - Images Viewer", self.layer.name())
+        self.default_settings = QSettings("QGIS3 - Images Viewer", "")
+        if self.settings.contains("geometry"):
+            self.restoreGeometry(self.settings.value("geometry"))
+            self.image_field = self.settings.value("imageField", "")
+        else:
+            self.image_field = ""
+            if self.default_settings.contains("geometry"):
+                self.restoreGeometry(self.default_settings.value("geometry"))
+
         self.canvas = self.iface.mapCanvas()
 
         refreshButton = create_tool_button('mActionRefresh.svg', "Refresh", self.refresh_images)
@@ -64,6 +70,22 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         display_expression = self.layer.displayExpression()
         self.layer.displayExpressionChanged.connect(self.refresh_display_expression)
         self.feature_title_expression = QgsExpression(display_expression)
+
+
+        self.fieldComboBox.setLayer(self.layer)
+        self.fieldComboBox.setAllowEmptyFieldName(True)
+        self.fieldComboBox.fieldChanged.connect(self.fieldChanged)
+
+        self.fieldComboBox.setField(self.image_field) # this will call referesh method
+
+    def fieldChanged(self, fieldName):
+        self.image_field = fieldName
+        print(not self.image_field)
+        if not self.image_field:
+            self.fieldComboBox.setStyleSheet("QComboBox { background-color: #3399ff; }")
+            self.fieldComboBox.setToolTip('Select field containing image data or url')
+        else:
+            self.fieldComboBox.setStyleSheet("")
 
         self.refresh_images()
 
@@ -87,6 +109,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.refresh_images()
 
     def refresh_images(self):
+
         start_time = time.time()  # Start time before the operation
         print("Refreshing images...")
 
@@ -95,6 +118,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         # Clear all widgets from the grid layout
         for i in reversed(range(self.gridLayout.count())):
             self.gridLayout.itemAt(i).widget().setParent(None)
+
 
         if self.b_combo_box_index == 0:
             extent = self.canvas.extent()
@@ -113,18 +137,16 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         for feature in features:
             filtered_count += 1
 
+            if not self.image_field:
+                continue
+
             try:
+
                 # doing this at the top so that if this fails we short circuit
-                image_source = "bytes" # or "link360"
                 data = None
-                if image_source == "bytes":
-                    blob = feature["bytes"]
-                    if blob:
-                        data = PILImage.open(io.BytesIO(blob))
-                else:
-                    url = feature['link360']
-                    if url:
-                        data = PILImage.open(url)
+                blob = feature[self.image_field]
+                if blob:
+                    data = PILImage.open(io.BytesIO(blob))
 
                 if not data:
                     continue
@@ -229,5 +251,9 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         # save the dialog's position and size
         self.settings.setValue("geometry", self.saveGeometry())
+        self.default_settings.setValue("geometry", self.saveGeometry())
+
+        # remember field name
+        self.settings.setValue("imageField", self.image_field)
 
         super().closeEvent(event)
