@@ -46,14 +46,17 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         if self.settings.contains("geometry"):
             self.restoreGeometry(self.settings.value("geometry"))
             self.image_field = self.settings.value("imageField", "")
-            self.relation_index = self.settings.value("relationIndex", 0)
+            relation_index = self.settings.value("relationIndex", 0)
         else:
             self.image_field = ""
-            self.relation_index = 0
+            relation_index = 0
             if self.default_settings.contains("geometry"):
                 self.restoreGeometry(self.default_settings.value("geometry"))
 
         self.canvas = self.iface.mapCanvas()
+
+        # mapping from feature.id() to the QFrame it's associated with
+        self.feature_to_frame = {}
 
         refreshButton = create_tool_button('mActionRefresh.svg', "Refresh", self.refresh_images)
         self.topToolBar.setIconSize(QSize(20, 20))
@@ -73,7 +76,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.feature_title_expression = QgsExpression(display_expression)
 
         self.relations = QgsProject.instance().relationManager().referencedRelations(self.layer)
-        self.relationComboBox.addItems([""] + [rel.name() for rel in self.relations])
+        self.relationComboBox.addItems([None] + [rel.name() for rel in self.relations])
         self.relationComboBox.currentIndexChanged.connect(self.relationChanged)
         self.relationComboBox.setToolTip('Select relationship')
 
@@ -83,12 +86,12 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.fieldComboBox.fieldChanged.connect(self.fieldChanged)
         self.fieldComboBox.setToolTip('Select field containing image data or url')
 
-        if self.relation_index == 0:
-            # initially comboBox current index = 0
+        self.relation = None
+        if relation_index == 0 or relation_index > len(self.relations): # if index 0 or not within len of relations, this can happen if settings are incorrectly read:
             # manually call relationChanged() as setCurrentIndex wont call it as signal hasn't chaged
             self.relationChanged(0)
         else:
-            self.relationComboBox.setCurrentIndex(self.relation_index)
+            self.relationComboBox.setCurrentIndex(relation_index)
 
     def relationChanged(self, index):
 
@@ -96,10 +99,12 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.fieldComboBox.clear()
         self.relation_index = index
 
-        if (not index) or (index > len(self.relations)): # if index 0 or not within len of relations, this can happen if settings are incorrectly read
+        if index == 0:
             image_layer = self.layer
+            self.relation = None
         else:
             image_layer = self.relations[index-1].referencingLayer()
+            self.relation = self.relations[index-1]
 
         # can't use builtin QgsFieldProxyModel.filters because there is no binary filter
         # https://github.com/qgis/QGIS/issues/53940
@@ -181,7 +186,20 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
                 # doing this at the top so that if this fails we short circuit
                 data = None
-                field_content = feature[self.image_field]
+                # child_feature_display_name = ""
+
+                if not self.relation:
+                    field_content = feature[self.image_field]
+                else:
+                    # get features from the child layer and get the first one
+                    child_features = [f for f in self.relation.getRelatedFeatures(feature)]
+                    if child_features:
+                        child_feature = child_features[0]  # take first child feature
+                        field_content = child_feature[self.image_field]
+                        # child_feature_display_name =
+                    else:
+                        continue
+
                 if field_content:
                     if self.field_type == QVariant.ByteArray:
                         data = PILImage.open(io.BytesIO(field_content))
@@ -241,6 +259,21 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                 toolbar_layout.addWidget(toolbar)
                 toolbar_layout.addStretch()
 
+                if self.relation:
+                    # If there are more child features, add next/prev buttons
+                    prevButton = create_tool_button('mActionArrowLeft.svg', "Previous",  partial(self.switch_related_feature, feature, 0, -1))
+                    prevButton.setEnabled(False)
+                    nextButton = create_tool_button('mActionArrowRight.svg', "Next", partial(self.switch_related_feature, feature, 0, 1))
+                    if  len(child_features) == 1:
+                        nextButton.setEnabled(False)
+
+                    children_toolbar = QToolBar()
+                    children_toolbar.setIconSize(QSize(20, 20))
+                    children_toolbar.addWidget(prevButton)
+                    children_toolbar.addWidget(nextButton)
+                    toolbar_layout.addWidget(children_toolbar)
+
+
                 frame_layout.addLayout(toolbar_layout)
 
                 self.gridLayout.addWidget(frame, row, col)
@@ -251,7 +284,8 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                     row += 1
 
             except Exception as e:
-                print(e.__class__)
+                import traceback
+                traceback.print_tb(e.__traceback__)
                 self.iface.messageBar().pushMessage("Image Viewer", f"{e.__class__.__name__}: Feature # {feature.id()}: {str(e)}", level=1, duration=3)
 
 
@@ -263,6 +297,11 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.show()
         print("Refresh operation took: %s seconds" % (time.time() - start_time))  # Print out the time it took
 
+    def switch_related_feature(self, feature, curr_index, direction):
+        pass
+        # # function to switch between child features
+        # child_features = [f for f in self.relation.getRelatedFeatures(feature)]
+        # new_index = (curr_index + direction)
 
     def flash_feature(self, feature):
         self.canvas.flashFeatureIds(self.layer, [feature.id()])
