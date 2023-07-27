@@ -1,8 +1,30 @@
+
+import io
+
 from PIL.ExifTags import TAGS
+from PIL import Image as PILImage
+
 from .image360_widget import Image360Widget
 from .image_widget import ImageWidget
 
+from PyQt5.QtCore import QVariant
+
 class ImageFactory:
+    @classmethod
+    def extract_data(cls, field_content, field_type):
+        if not field_content:
+            return None
+
+        if field_type == QVariant.ByteArray:
+            data = PILImage.open(io.BytesIO(field_content))
+        elif field_type == QVariant.String:
+            data = PILImage.open(field_content)
+        else:
+            raise ValueError("Unacceptable field type")
+
+        return data
+
+
     @classmethod
     def create_widget(cls, data):
         if cls.is_360(data):
