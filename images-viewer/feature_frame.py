@@ -24,7 +24,7 @@ class FeatureFrame(QFrame):
 
         self.frame_layout = QVBoxLayout(self)
         self.frame_layout.setContentsMargins(0, 0, 0, 0)  # (left, top, right, bottom)
-        self.frame_layout.setSpacing(2)  # (left, top, right, bottom)
+        self.frame_layout.setSpacing(0)  # (left, top, right, bottom) # we will add manual space when we need it
 
         self.toolbar_layout = QHBoxLayout()
         self.toolbar_layout.setContentsMargins(0, 0, 0, 0) # (left, top, right, bottom)
@@ -34,14 +34,15 @@ class FeatureFrame(QFrame):
         self.frame_layout.addWidget(self.createImageWidget(data))
         self.toolbar_layout.addWidget(self.createFeatureToolBar())
         self.toolbar_layout.addStretch()
+        self.frame_layout.addSpacing(2)
         self.frame_layout.addLayout(self.toolbar_layout)
 
-    def createTitleLabel(self, text: str, font_size: int=13, bg_color: str="white") -> QLabel:
+    def createTitleLabel(self, text: str, font_size: int=13, bg_color: str="white", min_height=35) -> QLabel:
         title_label = QLabel()
         title_label.setText(str(text))
-        title_label.setStyleSheet(f"text-align:center; font-size:{font_size}px; font: bold; color: black; background-color: {bg_color};  padding: 5px;")
+        title_label.setStyleSheet(f"text-align:center; font-size:{font_size}px; font: bold; color: black; background-color: {bg_color};  padding: 5px; border-bottom: 1px solid #BEBEBE;")
         title_label.setAlignment(Qt.AlignCenter)
-        title_label.setMinimumHeight(35)
+        title_label.setMinimumHeight(min_height)
         title_label.setWordWrap(True)
 
         return title_label

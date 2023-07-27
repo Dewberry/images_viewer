@@ -198,7 +198,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                 if not self.relation:
                     frame = FeatureFrame(self.iface, self.canvas, self.layer, feature, feature_title)
                 else:
-                    frame = ChildrenFeatureFrame(self.iface, self.canvas, self.layer, feature, feature_title, self.image_field, self.field_type, child_features)
+                    frame = ChildrenFeatureFrame(self.iface, self.canvas, self.layer, feature, feature_title, self.relations[self.relation_index-1].referencingLayer(), self.image_field, self.field_type, child_features)
 
                 frame.buildUI(data)
                 self.gridLayout.addWidget(frame, row, col)
