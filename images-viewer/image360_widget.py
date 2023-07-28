@@ -1,13 +1,7 @@
 from PyQt5 import QtCore
 from PyQt5.QtOpenGL import QGLWidget
-from qgis.core import Qgis, QgsProject, QgsUnitTypes, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsPointXY
 import OpenGL.GL as GL
 import OpenGL.GLU as GLU
-from PIL import Image
-from io import BytesIO
-import os
-import math
-import requests
 
 class Image360Widget(QGLWidget):
     """

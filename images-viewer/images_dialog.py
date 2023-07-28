@@ -1,5 +1,3 @@
-from PyQt5.QtCore import Qt
-
 from PyQt5 import uic
 from PyQt5.QtCore import QSettings, QVariant, QSize
 from PyQt5.QtGui import QIcon
@@ -7,27 +5,16 @@ from qgis.core import QgsExpression, QgsExpressionContext, QgsFields, QgsProject
 
 import time
 
-from PyQt5.QtWidgets import QVBoxLayout, QFrame, QHBoxLayout, QToolButton, QToolBar, QLabel, QSizePolicy
-
 from qgis.core import QgsFeatureRequest, QgsApplication
-from PIL import Image as PILImage
-import io
 import os
-from functools import partial
 
 from .image_factory import ImageFactory
+from .feature_frame import FeatureFrame
+from .children_feature_frame import ChildrenFeatureFrame
 
 Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_dialog.ui"))
 
-
-def create_tool_button(icon_name, tooltip_text, callback):
-    button = QToolButton()
-    button.setIcon(QgsApplication.getThemeIcon(icon_name))
-    button.setToolTip(tooltip_text)
-    button.setAutoRaise(True)
-    button.clicked.connect(callback)
-
-    return button
+from .utils import create_tool_button
 
 class ImageDialog(QtBaseClass, Ui_Dialog):
     def __init__(self, iface, parent=None):
@@ -200,82 +187,20 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                     else:
                         continue
 
-                if field_content:
-                    if self.field_type == QVariant.ByteArray:
-                        data = PILImage.open(io.BytesIO(field_content))
-                    elif self.field_type == QVariant.String:
-                        data = PILImage.open(field_content)
+                data = ImageFactory.extract_data(field_content, self.field_type)
 
                 if not data:
                     continue
 
-                frame = QFrame()
-                frame.setFrameStyle(QFrame.Box | QFrame.Plain)
-                frame.setStyleSheet("QFrame {color: #BEBEBE;}")
-                frame.setMinimumSize(400, 600)
-
-                frame_layout = QVBoxLayout(frame)
-                frame_layout.setContentsMargins(0, 0, 0, 0) # (left, top, right, bottom)
-                frame_layout.setSpacing(2) # (left, top, right, bottom)
-
                 context.setFeature(feature)
                 feature_title = self.feature_title_expression.evaluate(context)
 
-                feature_title_label = QLabel()
-                feature_title_label.setText(str(feature_title))
-                feature_title_label.setStyleSheet("text-align:center; font-size:13px; font: bold; color: black; background-color: white;  padding: 5px;")
-                feature_title_label.setAlignment(Qt.AlignCenter)
-                feature_title_label.setMinimumHeight(35)
-                feature_title_label.setWordWrap(True)
+                if not self.relation:
+                    frame = FeatureFrame(self.iface, self.canvas, self.layer, feature, feature_title)
+                else:
+                    frame = ChildrenFeatureFrame(self.iface, self.canvas, self.layer, feature, feature_title, self.relations[self.relation_index-1].referencingLayer(), self.image_field, self.field_type, child_features)
 
-                frame_layout.addWidget(feature_title_label)
-
-                imageWidget = ImageFactory.create_widget(data)
-                imageWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-                frame_layout.addWidget(imageWidget)
-
-                toolbar_layout = QHBoxLayout()
-                toolbar_layout.setContentsMargins(0, 0, 0, 0) # (left, top, right, bottom)
-
-                toolbar = QToolBar()
-                toolbar.setIconSize(QSize(20, 20))
-
-                selectButton = create_tool_button('mIconSelected.svg', "Select this feature", partial(self.select_feature, feature))
-                toolbar.addWidget(selectButton)
-
-                zoomButton = create_tool_button('mActionZoomTo.svg', "Zoom to this feature", partial(self.zoom_to_feature, feature))
-                toolbar.addWidget(zoomButton)
-
-                panButton = create_tool_button('mActionPanTo.svg', "Pan to this feature", partial(self.pan_to_feature, feature))
-                toolbar.addWidget(panButton)
-
-                panFlashButton = create_tool_button('mActionPanHighlightFeature.svg', "Pan and Flash this feature", partial(self.pan_flash_feature, feature))
-                toolbar.addWidget(panFlashButton)
-
-                flashButton = create_tool_button('mActionHighlightFeature.svg', "Flash this feature", partial(self.flash_feature, feature))
-                toolbar.addWidget(flashButton)
-
-                toolbar_layout.addWidget(toolbar)
-                toolbar_layout.addStretch()
-
-                if self.relation:
-                    # If there are more child features, add next/prev buttons
-                    prevButton = create_tool_button('mActionArrowLeft.svg', "Previous",  partial(self.switch_related_feature, feature, 0, -1))
-                    prevButton.setEnabled(False)
-                    nextButton = create_tool_button('mActionArrowRight.svg', "Next", partial(self.switch_related_feature, feature, 0, 1))
-                    if  len(child_features) == 1:
-                        nextButton.setEnabled(False)
-
-                    children_toolbar = QToolBar()
-                    children_toolbar.setIconSize(QSize(20, 20))
-                    children_toolbar.addWidget(prevButton)
-                    children_toolbar.addWidget(nextButton)
-                    toolbar_layout.addWidget(children_toolbar)
-
-
-                frame_layout.addLayout(toolbar_layout)
-
+                frame.buildUI(data)
                 self.gridLayout.addWidget(frame, row, col)
 
                 col += 1
@@ -296,30 +221,6 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         self.show()
         print("Refresh operation took: %s seconds" % (time.time() - start_time))  # Print out the time it took
-
-    def switch_related_feature(self, feature, curr_index, direction):
-        pass
-        # # function to switch between child features
-        # child_features = [f for f in self.relation.getRelatedFeatures(feature)]
-        # new_index = (curr_index + direction)
-
-    def flash_feature(self, feature):
-        self.canvas.flashFeatureIds(self.layer, [feature.id()])
-
-    def select_feature(self, feature):
-        self.layer.selectByIds([feature.id()])
-
-    def pan_flash_feature(self, feature):
-        self.canvas.setExtent(feature.geometry().boundingBox())
-        self.canvas.refresh()
-        self.canvas.flashFeatureIds(self.layer, [feature.id()])
-
-    def pan_to_feature(self, feature):
-        self.canvas.setExtent(feature.geometry().boundingBox())
-        self.canvas.refresh()
-
-    def zoom_to_feature(self, feature):
-        self.canvas.zoomToFeatureIds(self.layer, [feature.id()])
 
     def closeEvent(self, event):
         # When window is closed, disconnect  signals
