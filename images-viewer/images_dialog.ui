@@ -2,16 +2,19 @@
 <ui version="4.0">
     <class>MainDialog</class>
     <widget class="QDialog" name="MainDialog">
+        <property name="windowModality">
+            <enum>Qt::NonModal</enum>
+        </property>
+        <property name="windowFlags">
+            <set>Qt::Window</set>
+        </property>
         <property name="geometry">
             <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>400</width>
-                <height>300</height>
+                <width>700</width>
+                <height>700</height>
             </rect>
-        </property>
-        <property name="windowTitle">
-            <string>Main Dialog</string>
         </property>
         <property name="minimumSize">
             <size>
@@ -19,11 +22,8 @@
                 <height>700</height>
             </size>
         </property>
-        <property name="windowModality">
-            <enum>Qt::NonModal</enum>
-        </property>
-        <property name="windowFlags">
-            <set>Qt::Window</set>
+        <property name="windowTitle">
+            <string>Images Viewer</string>
         </property>
         <layout class="QVBoxLayout" name="mainVerticalLayout">
             <property name="margin">
@@ -100,8 +100,10 @@
                         </spacer>
                     </item>
                     <item>
-                        <widget class="QgsFieldComboBox" name="fieldComboBox">
-                        </widget>
+                        <widget class="QComboBox" name="relationComboBox" />
+                    </item>
+                    <item>
+                        <widget class="QgsFieldComboBox" name="fieldComboBox" />
                     </item>
                 </layout>
             </item>
