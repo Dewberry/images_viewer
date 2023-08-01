@@ -60,17 +60,11 @@
                 </widget>
             </item>
             <item>
-                <layout class="QHBoxLayout" name="horizontalLayout">
-                    <property name="leftMargin">
+                <layout class="QHBoxLayout" name="bottomBar">
+                    <property name="margin">
                         <number>5</number>
                     </property>
-                    <property name="topMargin">
-                        <number>5</number>
-                    </property>
-                    <property name="rightMargin">
-                        <number>5</number>
-                    </property>
-                    <property name="bottomMargin">
+                    <property name="spacing">
                         <number>5</number>
                     </property>
                     <item>
@@ -85,6 +79,26 @@
                     </item>
                     <item>
                         <spacer name="horizontalSpacer">
+                            <property name="orientation">
+                                <enum>Qt::Horizontal</enum>
+                            </property>
+                            <property name="sizeType">
+                                <enum>QSizePolicy::Expanding</enum>
+                            </property>
+                            <property name="sizeHint" stdset="0">
+                                <size>
+                                    <width>1</width>
+                                    <height>1</height>
+                                </size>
+                            </property>
+                        </spacer>
+                    </item>
+                    <item>
+                        <layout class="QHBoxLayout" name="paginationLayout">
+                        </layout>
+                    </item>
+                    <item>
+                        <spacer name="horizontalSpacer2">
                             <property name="orientation">
                                 <enum>Qt::Horizontal</enum>
                             </property>
