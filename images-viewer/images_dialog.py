@@ -1,23 +1,26 @@
-from PyQt5 import uic
-from PyQt5.QtCore import QSettings, QVariant, QSize
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QPushButton
-from PyQt5.QtCore import Qt
-
-from qgis.core import QgsExpression, QgsExpressionContext, QgsFields, QgsProject
-
+import os
 import time
 
-from qgis.core import QgsFeatureRequest, QgsApplication
-import os
+from PyQt5 import uic
+from PyQt5.QtCore import QSettings, QSize, Qt, QVariant
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QPushButton
+from qgis.core import (
+    QgsApplication,
+    QgsExpression,
+    QgsExpressionContext,
+    QgsFeatureRequest,
+    QgsFields,
+    QgsProject,
+)
 
-from .image_factory import ImageFactory
-from .feature_frame import FeatureFrame
 from .children_feature_frame import ChildrenFeatureFrame
+from .feature_frame import FeatureFrame
+from .image_factory import ImageFactory
+from .utils import create_tool_button
 
 Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_dialog.ui"))
 
-from .utils import create_tool_button
 
 class ImageDialog(QtBaseClass, Ui_Dialog):
     def __init__(self, iface, parent=None):
@@ -48,17 +51,23 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         # mapping from feature.id() to the QFrame it's associated with
         self.feature_to_frame = {}
 
-        refreshButton = create_tool_button('mActionRefresh.svg', "Refresh", self.refresh_features)
+        refreshButton = create_tool_button("mActionRefresh.svg", "Refresh", self.refresh_features)
         self.topToolBar.setIconSize(QSize(20, 20))
         self.topToolBar.addWidget(refreshButton)
 
-        self.featuresFilterComboBox.addItem(QIcon(QgsApplication.getThemeIcon('mActionOpenTableVisible.svg')), 'Show Visible Features') # index 0
-        self.featuresFilterComboBox.addItem(QIcon(QgsApplication.getThemeIcon('mActionOpenTableSelected.svg')), 'Show Selected Features') # index 1
-        self.featuresFilterComboBox.addItem(QIcon(QgsApplication.getThemeIcon('mActionOpenTable.svg')), 'Show All Features') # index 2
+        self.featuresFilterComboBox.addItem(
+            QIcon(QgsApplication.getThemeIcon("mActionOpenTableVisible.svg")), "Show Visible Features"
+        )  # index 0
+        self.featuresFilterComboBox.addItem(
+            QIcon(QgsApplication.getThemeIcon("mActionOpenTableSelected.svg")), "Show Selected Features"
+        )  # index 1
+        self.featuresFilterComboBox.addItem(
+            QIcon(QgsApplication.getThemeIcon("mActionOpenTable.svg")), "Show All Features"
+        )  # index 2
         self.featuresFilterComboBox.setIconSize(QSize(20, 20))  # set icon
 
         self.featuresFilterComboBox.currentIndexChanged.connect(self.handle_b_combobox_change)
-        self.b_combo_box_index = 0 # Start with visible
+        self.b_combo_box_index = 0  # Start with visible
 
         self.canvas.extentsChanged.connect(self.refresh_features)
 
@@ -68,7 +77,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         self.relations = QgsProject.instance().relationManager().referencedRelations(self.layer)
         relation_names = [""] + [rel.name() for rel in self.relations]
-        rel_icon = QIcon(QgsApplication.getThemeIcon('relation.svg'))
+        rel_icon = QIcon(QgsApplication.getThemeIcon("relation.svg"))
         for item in relation_names:
             self.relationComboBox.addItem(rel_icon, item)
         self.relationComboBox.currentIndexChanged.connect(self.relationChanged)
@@ -79,22 +88,23 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.fieldComboBox.fieldChanged.connect(self.fieldChanged)
 
         # pagination
-        self.offset = 0 # inclusive
-        self.limit = 9 # change this to conrol how many frames per page
+        self.offset = 0  # inclusive
+        self.limit = 9  # change this to conrol how many frames per page
         self.next_offset = 0
 
         self.previousPageButton = None
         self.nextPageButton = None
 
         self.relation = None
-        if relation_index == 0 or relation_index > len(self.relations): # if index 0 or not within len of relations, this can happen if settings are incorrectly read:
+        if relation_index == 0 or relation_index > len(
+            self.relations
+        ):  # if index 0 or not within len of relations, this can happen if settings are incorrectly read:
             # manually call relationChanged() as setCurrentIndex wont call it as signal hasn't chaged
             self.relationChanged(0)
         else:
             self.relationComboBox.setCurrentIndex(relation_index)
 
     def relationChanged(self, index):
-
         self.filtered_fields.clear()
         self.fieldComboBox.clear()
         self.relation_index = index
@@ -103,8 +113,8 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             image_layer = self.layer
             self.relation = None
         else:
-            image_layer = self.relations[index-1].referencingLayer()
-            self.relation = self.relations[index-1]
+            image_layer = self.relations[index - 1].referencingLayer()
+            self.relation = self.relations[index - 1]
 
         # can't use builtin QgsFieldProxyModel.filters because there is no binary filter
         # https://github.com/qgis/QGIS/issues/53940
@@ -115,9 +125,9 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         if self.image_field not in [f.name() for f in self.filtered_fields]:
             self.image_field = ""
-            self.fieldChanged("") # this will call referesh method
+            self.fieldChanged("")  # this will call referesh method
         else:
-            self.fieldComboBox.setField(self.image_field) # this will call referesh method
+            self.fieldComboBox.setField(self.image_field)  # this will call referesh method
 
     def fieldChanged(self, fieldName):
         self.image_field = fieldName
@@ -152,7 +162,6 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         self.refresh_features()
 
-
     def refresh_features(self):
         start_time = time.time()  # Start time before the operation
         print("Refreshing features...")
@@ -169,12 +178,11 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             self.feature_ids = [f.id() for f in self.layer.getFeatures()]
 
         self.feature_ids.sort()
-        print("Features: {} meiliseconds".format((time.time() - start_time)*1000))
+        print("Features: {} meiliseconds".format((time.time() - start_time) * 1000))
 
         self.refresh_images()
 
     def refresh_images(self, reverse=False):
-
         start_time = time.time()  # Start time before the operation
         print("Refreshing images...")
 
@@ -192,7 +200,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         if not self.image_field or not self.feature_ids:
             self.remove_page_buttons()
-            print("Images: {} meiliseconds".format((time.time() - start_time)*1000))  # Print out the time it took
+            print("Images: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
             return
 
         frames = []
@@ -207,7 +215,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         if not reverse or self.offset == 0:
             feature_range = range(self.offset, len(self.feature_ids), 1)
         else:
-            feature_range = range(self.offset-1, -1, -1)
+            feature_range = range(self.offset - 1, -1, -1)
 
         for i in feature_range:
             if len(frames) >= self.limit:
@@ -234,7 +242,6 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                     else:
                         continue
 
-
                 data = ImageFactory.extract_data(field_content, self.field_type)
 
                 if not data:
@@ -246,7 +253,17 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                 if not self.relation:
                     frame = FeatureFrame(self.iface, self.canvas, self.layer, feature, feature_title)
                 else:
-                    frame = ChildrenFeatureFrame(self.iface, self.canvas, self.layer, feature, feature_title, self.relations[self.relation_index-1].referencingLayer(), self.image_field, self.field_type, child_features)
+                    frame = ChildrenFeatureFrame(
+                        self.iface,
+                        self.canvas,
+                        self.layer,
+                        feature,
+                        feature_title,
+                        self.relations[self.relation_index - 1].referencingLayer(),
+                        self.image_field,
+                        self.field_type,
+                        child_features,
+                    )
 
                 frame.buildUI(data)
                 frames.append(frame)
@@ -254,7 +271,9 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             except Exception as e:
                 # import traceback
                 # traceback.print_tb(e.__traceback__)
-                self.iface.messageBar().pushMessage("Image Viewer", f"{e.__class__.__name__}: Feature # {f_id}: {str(e)}", level=1, duration=3)
+                self.iface.messageBar().pushMessage(
+                    "Image Viewer", f"{e.__class__.__name__}: Feature # {f_id}: {str(e)}", level=1, duration=3
+                )
 
         if reverse:
             frames.reverse()
@@ -272,13 +291,13 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                 col = 0
                 row += 1
 
-        if self.offset == 0 and len(frames) < 9: # no pagination required
+        if self.offset == 0 and len(frames) < 9:  # no pagination required
             self.remove_page_buttons()
         else:
             self.add_page_buttons()
 
         self.show()
-        print("Images: {} meiliseconds".format((time.time() - start_time)*1000))  # Print out the time it took
+        print("Images: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
 
     def remove_page_buttons(self):
         if self.previousPageButton:
@@ -301,7 +320,6 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         self.previousPageButton.setEnabled(self.offset > 0)
 
-
         if not self.nextPageButton:
             self.nextPageButton = QPushButton("Next ", self)
             self.nextPageButton.setIcon(QgsApplication.getThemeIcon("/mActionArrowRight.svg"))
@@ -311,7 +329,6 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             self.nextPageButton.setMaximumSize(150, 50)
 
         self.nextPageButton.setEnabled(self.next_offset < len(self.feature_ids))
-
 
     def previous_page(self):
         self.refresh_images(reverse=True)

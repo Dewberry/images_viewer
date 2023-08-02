@@ -1,10 +1,17 @@
-from PyQt5.QtWidgets import QVBoxLayout, QFrame, QHBoxLayout, QToolBar, QLabel, QSizePolicy
-from PyQt5.QtCore import Qt, QSize
-
 from PIL import Image as PILImage
+from PyQt5.QtCore import QSize, Qt
+from PyQt5.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QSizePolicy,
+    QToolBar,
+    QVBoxLayout,
+)
 
 from .image_factory import ImageFactory
 from .utils import create_tool_button
+
 
 class FeatureFrame(QFrame):
 

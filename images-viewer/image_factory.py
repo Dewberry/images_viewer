@@ -1,13 +1,13 @@
 
 import io
 
-from PIL.ExifTags import TAGS
 from PIL import Image as PILImage
+from PIL.ExifTags import TAGS
+from PyQt5.QtCore import QVariant
 
 from .image360_widget import Image360Widget
 from .image_widget import ImageWidget
 
-from PyQt5.QtCore import QVariant
 
 class ImageFactory:
     @classmethod

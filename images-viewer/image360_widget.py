@@ -1,7 +1,8 @@
-from PyQt5 import QtCore
-from PyQt5.QtOpenGL import QGLWidget
 import OpenGL.GL as GL
 import OpenGL.GLU as GLU
+from PyQt5 import QtCore
+from PyQt5.QtOpenGL import QGLWidget
+
 
 class Image360Widget(QGLWidget):
     """

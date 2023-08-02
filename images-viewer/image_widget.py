@@ -1,6 +1,7 @@
 from OpenGL.GL import *
 from qgis.PyQt.QtWidgets import QOpenGLWidget
 
+
 class ImageWidget(QOpenGLWidget):
     def __init__(self, image):
         super().__init__()

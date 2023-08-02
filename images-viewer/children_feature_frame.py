@@ -1,15 +1,14 @@
+from functools import partial
 from typing import List
-from PyQt5.QtWidgets import  QToolBar
-from PyQt5.QtCore import QSize
-from qgis.core import QgsFeature, QgsExpression, QgsExpressionContext
 
 from PIL import Image as PILImage
-from functools import partial
+from PyQt5.QtCore import QSize
+from PyQt5.QtWidgets import QToolBar
+from qgis.core import QgsExpression, QgsExpressionContext, QgsFeature
 
-from .utils import create_tool_button
 from .feature_frame import FeatureFrame
-
 from .image_factory import ImageFactory
+from .utils import create_tool_button
 
 
 class ChildrenFeatureFrame(FeatureFrame):
