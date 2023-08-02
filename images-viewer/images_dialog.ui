@@ -33,17 +33,15 @@
                 <number>0</number>
             </property>
             <item>
-                <widget class="QWidget" name="topToolBarContainer">
-                    <layout class="QHBoxLayout" name="topToolBarLayout">
-                        <property name="margin">
-                            <number>0</number>
-                        </property>
-                        <item>
-                            <widget class="QToolBar" name="topToolBar">
-                            </widget>
-                        </item>
-                    </layout>
-                </widget>
+                <layout class="QHBoxLayout" name="topBarLayout">
+                    <property name="margin">
+                        <number>0</number>
+                    </property>
+                    <item>
+                        <widget class="QToolBar" name="topToolBar">
+                        </widget>
+                    </item>
+                </layout>
             </item>
             <item>
                 <widget class="QScrollArea" name="mainScrollArea">
@@ -60,7 +58,7 @@
                 </widget>
             </item>
             <item>
-                <layout class="QHBoxLayout" name="bottomBar">
+                <layout class="QHBoxLayout" name="bottomBarLayout">
                     <property name="margin">
                         <number>5</number>
                     </property>
@@ -68,17 +66,11 @@
                         <number>5</number>
                     </property>
                     <item>
-                        <widget class="QComboBox" name="bottomComboBox">
-                            <property name="sizePolicy">
-                                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-                                    <horstretch>0</horstretch>
-                                    <verstretch>0</verstretch>
-                                </sizepolicy>
-                            </property>
+                        <widget class="QComboBox" name="featuresFilterComboBox">
                         </widget>
                     </item>
                     <item>
-                        <spacer name="horizontalSpacer">
+                        <spacer name="bottomBarSpacerLeft">
                             <property name="orientation">
                                 <enum>Qt::Horizontal</enum>
                             </property>
@@ -94,11 +86,11 @@
                         </spacer>
                     </item>
                     <item>
-                        <layout class="QHBoxLayout" name="paginationLayout">
+                        <layout class="QHBoxLayout" name="paginationButtonsLayout">
                         </layout>
                     </item>
                     <item>
-                        <spacer name="horizontalSpacer2">
+                        <spacer name="bottomBarSpacerRight">
                             <property name="orientation">
                                 <enum>Qt::Horizontal</enum>
                             </property>
@@ -114,10 +106,12 @@
                         </spacer>
                     </item>
                     <item>
-                        <widget class="QComboBox" name="relationComboBox" />
+                        <widget class="QComboBox" name="relationComboBox">
+                        </widget>
                     </item>
                     <item>
-                        <widget class="QgsFieldComboBox" name="fieldComboBox" />
+                        <widget class="QgsFieldComboBox" name="fieldComboBox">
+                        </widget>
                     </item>
                 </layout>
             </item>

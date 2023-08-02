@@ -52,17 +52,18 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.topToolBar.setIconSize(QSize(20, 20))
         self.topToolBar.addWidget(refreshButton)
 
-        self.bottomComboBox.addItem(QIcon(QgsApplication.getThemeIcon('mActionOpenTableVisible.svg')), 'Show Visible Features') # index 0
-        self.bottomComboBox.addItem(QIcon(QgsApplication.getThemeIcon('mActionOpenTableSelected.svg')), 'Show Selected Features') # index 1
-        self.bottomComboBox.addItem(QIcon(QgsApplication.getThemeIcon('mActionOpenTable.svg')), 'Show All Features') # index 2
-        self.bottomComboBox.setIconSize(QSize(20, 20))  # set icon
+        self.featuresFilterComboBox.addItem(QIcon(QgsApplication.getThemeIcon('mActionOpenTableVisible.svg')), 'Show Visible Features') # index 0
+        self.featuresFilterComboBox.addItem(QIcon(QgsApplication.getThemeIcon('mActionOpenTableSelected.svg')), 'Show Selected Features') # index 1
+        self.featuresFilterComboBox.addItem(QIcon(QgsApplication.getThemeIcon('mActionOpenTable.svg')), 'Show All Features') # index 2
+        self.featuresFilterComboBox.setIconSize(QSize(20, 20))  # set icon
 
-        self.bottomComboBox.currentIndexChanged.connect(self.handle_b_combobox_change)
+        self.featuresFilterComboBox.currentIndexChanged.connect(self.handle_b_combobox_change)
         self.b_combo_box_index = 0 # Start with visible
+
         self.canvas.extentsChanged.connect(self.refresh_features)
 
         display_expression = self.layer.displayExpression()
-        self.layer.displayExpressionChanged.connect(self.refresh_display_expression)
+        self.layer.displayExpressionChanged.connect(self.displayExpressionChanged)
         self.feature_title_expression = QgsExpression(display_expression)
 
         self.relations = QgsProject.instance().relationManager().referencedRelations(self.layer)
@@ -129,7 +130,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         self.refresh_features()
 
-    def refresh_display_expression(self):
+    def displayExpressionChanged(self):
         display_expression = self.layer.displayExpression()
         self.feature_title_expression = QgsExpression(display_expression)
         # todo: clear frames
@@ -280,12 +281,12 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
     def remove_page_buttons(self):
         if self.previousPageButton:
-            self.paginationLayout.removeWidget(self.previousPageButton)
+            self.paginationButtonsLayout.removeWidget(self.previousPageButton)
             self.previousPageButton.deleteLater()
             self.previousPageButton = None
 
         if self.nextPageButton:
-            self.paginationLayout.removeWidget(self.nextPageButton)
+            self.paginationButtonsLayout.removeWidget(self.nextPageButton)
             self.nextPageButton.deleteLater()
             self.nextPageButton = None
 
@@ -294,7 +295,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             self.previousPageButton = QPushButton(" Previous", self)
             self.previousPageButton.setIcon(QgsApplication.getThemeIcon("/mActionArrowLeft.svg"))
             self.previousPageButton.clicked.connect(self.previous_page)
-            self.paginationLayout.addWidget(self.previousPageButton)
+            self.paginationButtonsLayout.addWidget(self.previousPageButton)
             self.previousPageButton.setMaximumSize(150, 50)
 
         self.previousPageButton.setEnabled(self.offset > 0)
@@ -305,7 +306,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             self.nextPageButton.setIcon(QgsApplication.getThemeIcon("/mActionArrowRight.svg"))
             self.nextPageButton.setLayoutDirection(Qt.RightToLeft)
             self.nextPageButton.clicked.connect(self.next_page)
-            self.paginationLayout.addWidget(self.nextPageButton)
+            self.paginationButtonsLayout.addWidget(self.nextPageButton)
             self.nextPageButton.setMaximumSize(150, 50)
 
         self.nextPageButton.setEnabled(self.next_offset < len(self.feature_ids))
@@ -320,7 +321,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
     def closeEvent(self, event):
         # When window is closed, disconnect  signals
-        self.layer.displayExpressionChanged.disconnect(self.refresh_display_expression)
+        self.layer.displayExpressionChanged.disconnect(self.displayExpressionChanged)
         if self.b_combo_box_index == 0:
             self.canvas.extentsChanged.disconnect(self.refresh_features)
         elif self.b_combo_box_index == 1:
