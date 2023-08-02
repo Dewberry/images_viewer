@@ -1,6 +1,9 @@
 from PyQt5 import uic
 from PyQt5.QtCore import QSettings, QVariant, QSize
 from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QPushButton
+from PyQt5.QtCore import Qt
+
 from qgis.core import QgsExpression, QgsExpressionContext, QgsFields, QgsProject
 
 import time
@@ -45,7 +48,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         # mapping from feature.id() to the QFrame it's associated with
         self.feature_to_frame = {}
 
-        refreshButton = create_tool_button('mActionRefresh.svg', "Refresh", self.refresh_images)
+        refreshButton = create_tool_button('mActionRefresh.svg', "Refresh", self.refresh_features)
         self.topToolBar.setIconSize(QSize(20, 20))
         self.topToolBar.addWidget(refreshButton)
 
@@ -56,7 +59,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         self.bottomComboBox.currentIndexChanged.connect(self.handle_b_combobox_change)
         self.b_combo_box_index = 0 # Start with visible
-        self.canvas.extentsChanged.connect(self.refresh_images)
+        self.canvas.extentsChanged.connect(self.refresh_features)
 
         display_expression = self.layer.displayExpression()
         self.layer.displayExpressionChanged.connect(self.refresh_display_expression)
@@ -72,6 +75,14 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.fieldComboBox.setAllowEmptyFieldName(True)
         self.fieldComboBox.fieldChanged.connect(self.fieldChanged)
         self.fieldComboBox.setToolTip('Select field containing image data or url')
+
+        # pagination
+        self.offset = 0 # inclusive
+        self.limit = 9 # change this to conrol how many frames per page
+        self.next_offset = 0
+
+        self.previousPageButton = None
+        self.nextPageButton = None
 
         self.relation = None
         if relation_index == 0 or relation_index > len(self.relations): # if index 0 or not within len of relations, this can happen if settings are incorrectly read:
@@ -116,61 +127,95 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             field = self.filtered_fields[field_index]
             self.field_type = field.type()
 
-        self.refresh_images()
+        self.refresh_features()
 
     def refresh_display_expression(self):
         display_expression = self.layer.displayExpression()
         self.feature_title_expression = QgsExpression(display_expression)
+        # todo: clear frames
         self.refresh_images()
 
     def handle_b_combobox_change(self, index):
         if self.b_combo_box_index == 0:
-            self.canvas.extentsChanged.disconnect(self.refresh_images)
+            self.canvas.extentsChanged.disconnect(self.refresh_features)
         elif self.b_combo_box_index == 1:
-            self.layer.selectionChanged.disconnect(self.refresh_images)
+            self.layer.selectionChanged.disconnect(self.refresh_features)
 
         if index == 0:
-            self.canvas.extentsChanged.connect(self.refresh_images)
+            self.canvas.extentsChanged.connect(self.refresh_features)
         elif index == 1:
-            self.layer.selectionChanged.connect(self.refresh_images)
+            self.layer.selectionChanged.connect(self.refresh_features)
 
         self.b_combo_box_index = index
+
+        self.refresh_features()
+
+
+    def refresh_features(self):
+        start_time = time.time()  # Start time before the operation
+        print("Refreshing features...")
+
+        self.next_offset, self.offset = 0, 0
+        if self.b_combo_box_index == 0:
+            extent = self.canvas.extent()
+            request = QgsFeatureRequest().setFilterRect(extent)
+            self.feature_ids = [f.id() for f in self.layer.getFeatures(request)]
+        elif self.b_combo_box_index == 1:
+            selected_ids = self.layer.selectedFeatureIds()
+            self.feature_ids = selected_ids
+        elif self.b_combo_box_index == 2:
+            self.feature_ids = [f.id() for f in self.layer.getFeatures()]
+
+        self.feature_ids.sort()
+        print("Features: {} meiliseconds".format((time.time() - start_time)*1000))
+
         self.refresh_images()
 
-    def refresh_images(self):
+    def refresh_images(self, reverse=False):
 
         start_time = time.time()  # Start time before the operation
         print("Refreshing images...")
 
         context = QgsExpressionContext()
 
-        # Clear all widgets from the grid layout
         for i in reversed(range(self.gridLayout.count())):
-            self.gridLayout.itemAt(i).widget().setParent(None)
+            widget = self.gridLayout.itemAt(i).widget()
+            self.gridLayout.removeWidget(widget)
+            widget.deleteLater()
 
+        filtered_count = len(self.feature_ids)
+        total_count = self.layer.featureCount()
 
-        if self.b_combo_box_index == 0:
-            extent = self.canvas.extent()
-            request = QgsFeatureRequest().setFilterRect(extent)
-            features = self.layer.getFeatures(request)
-        elif self.b_combo_box_index == 1:
-            selected_ids = self.layer.selectedFeatureIds()
-            features = self.layer.getFeatures(QgsFeatureRequest().setFilterFids(selected_ids))
-        elif self.b_combo_box_index == 2:
-            features = self.layer.getFeatures()
+        self.setWindowTitle(f"{self.layer.name()} -- Features Total: {total_count}, Filtered: {filtered_count}")
 
-        filtered_count = 0
+        if not self.image_field or not self.feature_ids:
+            self.remove_page_buttons()
+            print("Images: {} meiliseconds".format((time.time() - start_time)*1000))  # Print out the time it took
+            return
 
-        row = 0
-        col = 0
-        for feature in features:
-            filtered_count += 1
+        frames = []
+        count = 0
 
-            if not self.image_field:
-                continue
+        # although it is not expected the offset to be less than 0 but this is a safeguard if for some error offset is less than 0
+        if self.offset < 0:
+            reverse = False
+            self.offset == 0
+
+        # we will always have one element int the range
+        if not reverse or self.offset == 0:
+            feature_range = range(self.offset, len(self.feature_ids), 1)
+        else:
+            feature_range = range(self.offset-1, -1, -1)
+
+        for i in feature_range:
+            if len(frames) >= self.limit:
+                break
+            count += 1
+
+            f_id = self.feature_ids[i]
 
             try:
-
+                feature = self.layer.getFeature(f_id)
                 # doing this at the top so that if this fails we short circuit
                 data = None
                 # child_feature_display_name = ""
@@ -187,6 +232,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                     else:
                         continue
 
+
                 data = ImageFactory.extract_data(field_content, self.field_type)
 
                 if not data:
@@ -201,34 +247,84 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                     frame = ChildrenFeatureFrame(self.iface, self.canvas, self.layer, feature, feature_title, self.relations[self.relation_index-1].referencingLayer(), self.image_field, self.field_type, child_features)
 
                 frame.buildUI(data)
-                self.gridLayout.addWidget(frame, row, col)
-
-                col += 1
-                if col > 2:  # Change this number to adjust how many images per row
-                    col = 0
-                    row += 1
+                frames.append(frame)
 
             except Exception as e:
-                import traceback
-                traceback.print_tb(e.__traceback__)
-                self.iface.messageBar().pushMessage("Image Viewer", f"{e.__class__.__name__}: Feature # {feature.id()}: {str(e)}", level=1, duration=3)
+                # import traceback
+                # traceback.print_tb(e.__traceback__)
+                self.iface.messageBar().pushMessage("Image Viewer", f"{e.__class__.__name__}: Feature # {f_id}: {str(e)}", level=1, duration=3)
 
+        if reverse:
+            frames.reverse()
+            self.offset -= count
 
-        total_count = self.layer.featureCount()
+        self.next_offset = self.offset + count
 
-        # Set window title
-        self.setWindowTitle(f"{self.layer.name()} -- Features Total: {total_count}, Filtered: {filtered_count}")
+        row = 0
+        col = 0
+        for frame in frames:
+            self.gridLayout.addWidget(frame, row, col)
+
+            col += 1
+            if col > 2:  # Change this number to adjust how many images per row
+                col = 0
+                row += 1
+
+        if self.offset == 0 and len(frames) < 9: # no pagination required
+            self.remove_page_buttons()
+        else:
+            self.add_page_buttons()
 
         self.show()
-        print("Refresh operation took: %s seconds" % (time.time() - start_time))  # Print out the time it took
+        print("Images: {} meiliseconds".format((time.time() - start_time)*1000))  # Print out the time it took
+
+    def remove_page_buttons(self):
+        if self.previousPageButton:
+            self.paginationLayout.removeWidget(self.previousPageButton)
+            self.previousPageButton.deleteLater()
+            self.previousPageButton = None
+
+        if self.nextPageButton:
+            self.paginationLayout.removeWidget(self.nextPageButton)
+            self.nextPageButton.deleteLater()
+            self.nextPageButton = None
+
+    def add_page_buttons(self):
+        if not self.previousPageButton:
+            self.previousPageButton = QPushButton(" Previous", self)
+            self.previousPageButton.setIcon(QgsApplication.getThemeIcon("/mActionArrowLeft.svg"))
+            self.previousPageButton.clicked.connect(self.previous_page)
+            self.paginationLayout.addWidget(self.previousPageButton)
+            self.previousPageButton.setMaximumSize(150, 50)
+
+        self.previousPageButton.setEnabled(self.offset > 0)
+
+
+        if not self.nextPageButton:
+            self.nextPageButton = QPushButton("Next ", self)
+            self.nextPageButton.setIcon(QgsApplication.getThemeIcon("/mActionArrowRight.svg"))
+            self.nextPageButton.setLayoutDirection(Qt.RightToLeft)
+            self.nextPageButton.clicked.connect(self.next_page)
+            self.paginationLayout.addWidget(self.nextPageButton)
+            self.nextPageButton.setMaximumSize(150, 50)
+
+        self.nextPageButton.setEnabled(self.next_offset < len(self.feature_ids))
+
+
+    def previous_page(self):
+        self.refresh_images(reverse=True)
+
+    def next_page(self):
+        self.offset = self.next_offset
+        self.refresh_images()
 
     def closeEvent(self, event):
         # When window is closed, disconnect  signals
         self.layer.displayExpressionChanged.disconnect(self.refresh_display_expression)
         if self.b_combo_box_index == 0:
-            self.canvas.extentsChanged.disconnect(self.refresh_images)
+            self.canvas.extentsChanged.disconnect(self.refresh_features)
         elif self.b_combo_box_index == 1:
-            self.layer.selectionChanged.disconnect(self.refresh_images)
+            self.layer.selectionChanged.disconnect(self.refresh_features)
 
         # save the dialog's position and size
         self.settings.setValue("geometry", self.saveGeometry())
