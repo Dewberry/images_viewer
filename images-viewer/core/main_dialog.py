@@ -32,11 +32,11 @@ from .utils import create_tool_button
 Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_dialog.ui"))
 
 
-class ImageDialog(QtBaseClass, Ui_Dialog):
+class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
     """Main window for Images Viewer"""
 
     def __init__(self, iface, parent=None):
-        super(ImageDialog, self).__init__(parent)
+        super(ImagesViewerDialog, self).__init__(parent)
         self.setupUi(self)
 
         self.iface = iface

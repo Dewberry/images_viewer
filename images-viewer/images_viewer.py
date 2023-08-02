@@ -25,13 +25,14 @@ from qgis.PyQt.QtCore import QCoreApplication, QSettings, QTranslator
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
-from .images_dialog import ImageDialog
+from images_viewer.core import ImagesViewerDialog
+
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 icon_path = os.path.join(current_dir, "icon.svg")
 
 
-class ImagesViewer:
+class ImagesViewerPlugin:
     """QGIS Plugin Implementation."""
 
     def __init__(self, iface):
@@ -172,7 +173,7 @@ class ImagesViewer:
 
         # Create the dialog with elements (after translation) and keep reference
 
-        self.dlg = ImageDialog(self.iface)
+        self.dlg = ImagesViewerDialog(self.iface)
 
         # show the dialog
         self.dlg.show()

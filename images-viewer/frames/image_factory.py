@@ -1,11 +1,9 @@
 import io
 
+from images_viewer.widgets import Image360Widget, ImageWidget
 from PIL import Image as PILImage
 from PIL.ExifTags import TAGS
 from PyQt5.QtCore import QVariant
-
-from .image360_widget import Image360Widget
-from .image_widget import ImageWidget
 
 
 class ImageFactory:
