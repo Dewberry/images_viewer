@@ -1,4 +1,3 @@
-
 import io
 
 from PIL import Image as PILImage
@@ -24,7 +23,6 @@ class ImageFactory:
 
         return data
 
-
     @classmethod
     def create_widget(cls, data):
         if cls.is_360(data):
@@ -34,7 +32,7 @@ class ImageFactory:
 
     @staticmethod
     def is_360(image):
-        '''Takes in an image object, returns a boolean indicating whether that image is a 360 image or not'''
+        """Takes in an image object, returns a boolean indicating whether that image is a 360 image or not"""
         width, height = image.size
         exifdata = image.getexif()
         # looping through all the tags present in exifdata
@@ -44,7 +42,7 @@ class ImageFactory:
             tagname = TAGS.get(tagid, tagid)
             # passing the tagid to get its respective value
             value = exifdata.get(tagid)
-            #print(f"{tagname:25}: {value}")
+            # print(f"{tagname:25}: {value}")
             if tagname == "XMLPacket":
                 xml = value.decode("utf-8")
                 if "GPano" in xml or "XMP-GPano" in xml:
@@ -52,10 +50,10 @@ class ImageFactory:
                 break
         has_360_dimensions = True if width >= height * 2 else False
         if has_360_dimensions and not has_gpano:
-            #raise ValueError("Unclear whether image is regular or 360")
+            # raise ValueError("Unclear whether image is regular or 360")
             return True
         elif has_gpano and not has_360_dimensions:
-            #raise ValueError("Unclear whether image is regular or 360")
+            # raise ValueError("Unclear whether image is regular or 360")
             return True
         elif has_360_dimensions and has_gpano:
             return True

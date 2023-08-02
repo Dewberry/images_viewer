@@ -31,4 +31,5 @@ def classFactory(iface):  # pylint: disable=invalid-name
     """
     #
     from .images_viewer import ImagesViewer
+
     return ImagesViewer(iface)

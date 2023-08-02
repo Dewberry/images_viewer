@@ -28,7 +28,8 @@ from qgis.PyQt.QtWidgets import QAction
 from .images_dialog import ImageDialog
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-icon_path = os.path.join(current_dir, 'icon.svg')
+icon_path = os.path.join(current_dir, "icon.svg")
+
 
 class ImagesViewer:
     """QGIS Plugin Implementation."""
@@ -46,11 +47,8 @@ class ImagesViewer:
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
         # initialize locale
-        locale = QSettings().value('locale/userLocale')[0:2]
-        locale_path = os.path.join(
-            self.plugin_dir,
-            'i18n',
-            'ImagesViewer_{}.qm'.format(locale))
+        locale = QSettings().value("locale/userLocale")[0:2]
+        locale_path = os.path.join(self.plugin_dir, "i18n", "ImagesViewer_{}.qm".format(locale))
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
@@ -59,7 +57,7 @@ class ImagesViewer:
 
         # Declare instance attributes
         self.actions = []
-        self.menu = self.tr(u'&Images Viewer')
+        self.menu = self.tr("&Images Viewer")
 
         # Check if plugin was started the first time in current QGIS session
         # Must be set in initGui() to survive plugin reloads
@@ -78,8 +76,7 @@ class ImagesViewer:
         :rtype: QString
         """
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
-        return QCoreApplication.translate('ImagesViewer', message)
-
+        return QCoreApplication.translate("ImagesViewer", message)
 
     def add_action(
         self,
@@ -91,7 +88,8 @@ class ImagesViewer:
         add_to_toolbar=True,
         status_tip=None,
         whats_this=None,
-        parent=None):
+        parent=None,
+    ):
         """Add a toolbar icon to the toolbar.
 
         :param icon_path: Path to the icon for this action. Can be a resource
@@ -147,9 +145,7 @@ class ImagesViewer:
             self.iface.addToolBarIcon(action)
 
         if add_to_menu:
-            self.iface.addPluginToMenu(
-                self.menu,
-                action)
+            self.iface.addPluginToMenu(self.menu, action)
 
         self.actions.append(action)
 
@@ -159,23 +155,17 @@ class ImagesViewer:
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
         self.add_action(
-            icon_path,
-            text=self.tr(u'Open Images Viewer'),
-            callback=self.run,
-            parent=self.iface.mainWindow())
+            icon_path, text=self.tr("Open Images Viewer"), callback=self.run, parent=self.iface.mainWindow()
+        )
 
         # will be set False in run()
         self.first_start = True
 
-
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
         for action in self.actions:
-            self.iface.removePluginMenu(
-                self.tr(u'Open Images Viewer'),
-                action)
+            self.iface.removePluginMenu(self.tr("Open Images Viewer"), action)
             self.iface.removeToolBarIcon(action)
-
 
     def run(self):
         """Run method that performs all the real work"""
