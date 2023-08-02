@@ -67,7 +67,10 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.feature_title_expression = QgsExpression(display_expression)
 
         self.relations = QgsProject.instance().relationManager().referencedRelations(self.layer)
-        self.relationComboBox.addItems([None] + [rel.name() for rel in self.relations])
+        relation_names = [""] + [rel.name() for rel in self.relations]
+        rel_icon = QIcon(QgsApplication.getThemeIcon('relation.svg'))
+        for item in relation_names:
+            self.relationComboBox.addItem(rel_icon, item)
         self.relationComboBox.currentIndexChanged.connect(self.relationChanged)
 
         self.filtered_fields = QgsFields()
