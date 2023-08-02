@@ -69,13 +69,11 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.relations = QgsProject.instance().relationManager().referencedRelations(self.layer)
         self.relationComboBox.addItems([None] + [rel.name() for rel in self.relations])
         self.relationComboBox.currentIndexChanged.connect(self.relationChanged)
-        self.relationComboBox.setToolTip('Select relationship')
 
         self.filtered_fields = QgsFields()
 
         self.fieldComboBox.setAllowEmptyFieldName(True)
         self.fieldComboBox.fieldChanged.connect(self.fieldChanged)
-        self.fieldComboBox.setToolTip('Select field containing image data or url')
 
         # pagination
         self.offset = 0 # inclusive

@@ -107,10 +107,16 @@
                     </item>
                     <item>
                         <widget class="QComboBox" name="relationComboBox">
+                            <property name="toolTip">
+                                <string>Select relationship</string>
+                            </property>
                         </widget>
                     </item>
                     <item>
                         <widget class="QgsFieldComboBox" name="fieldComboBox">
+                            <property name="toolTip">
+                                <string>Select field containing image data or url</string>
+                            </property>
                         </widget>
                     </item>
                 </layout>
