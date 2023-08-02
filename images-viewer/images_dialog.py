@@ -1,3 +1,13 @@
+# -*- coding: utf-8 -*-
+"""
+This file stores Main Dialog class for Images Viewer. Only functionality related to the main dialog should go here.
+Static UI components must reside in the .ui file.
+Dynamic components should not be in the .ui file but here.
+All methods should be camelCase to follow QTs conventions.
+Variables should be snake_case to follow python's guidlines
+"""
+
+
 import os
 import time
 
@@ -23,6 +33,8 @@ Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), 
 
 
 class ImageDialog(QtBaseClass, Ui_Dialog):
+    """Main window for Images Viewer"""
+
     def __init__(self, iface, parent=None):
         super(ImageDialog, self).__init__(parent)
         self.setupUi(self)
@@ -33,7 +45,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             raise ValueError("Layer is not defined")
         self.setWindowTitle(self.layer.name())
 
-        # restore the dialog's position and size if exists, also restore image_field for this layer
+        # Restore previous settings
         self.settings = QSettings("QGIS3 - Images Viewer", self.layer.name())
         self.default_settings = QSettings("QGIS3 - Images Viewer", "")
         if self.settings.contains("geometry"):
@@ -48,12 +60,20 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         self.canvas = self.iface.mapCanvas()
 
-        # mapping from feature.id() to the QFrame it's associated with
-        self.feature_to_frame = {}
+        display_expression = self.layer.displayExpression()
+        self.layer.handleDisplayExpressionChange.connect(self.handleDisplayExpressionChange)
+        self.feature_title_expression = QgsExpression(display_expression)
 
-        refreshButton = create_tool_button("mActionRefresh.svg", "Refresh", self.refresh_features)
+        # Top tool bar
+        refreshButton = create_tool_button("mActionRefresh.svg", "Refresh", self.refreshFeatures)
         self.topToolBar.setIconSize(QSize(20, 20))
         self.topToolBar.addWidget(refreshButton)
+
+        # Bottom tool bar
+
+        # Feature Filter
+        self.featuresFilterComboBox.setIconSize(QSize(20, 20))  # set icon
+        self.featuresFilterComboBox.currentIndexChanged.connect(self.handleFFComboboxChange)
 
         self.featuresFilterComboBox.addItem(
             QIcon(QgsApplication.getThemeIcon("mActionOpenTableVisible.svg")), "Show Visible Features"
@@ -64,30 +84,11 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.featuresFilterComboBox.addItem(
             QIcon(QgsApplication.getThemeIcon("mActionOpenTable.svg")), "Show All Features"
         )  # index 2
-        self.featuresFilterComboBox.setIconSize(QSize(20, 20))  # set icon
 
-        self.featuresFilterComboBox.currentIndexChanged.connect(self.handle_b_combobox_change)
-        self.b_combo_box_index = 0  # Start with visible
+        self.ff_combo_box_index = 0  # Start with visible
+        self.canvas.extentsChanged.connect(self.refreshFeatures)
 
-        self.canvas.extentsChanged.connect(self.refresh_features)
-
-        display_expression = self.layer.displayExpression()
-        self.layer.displayExpressionChanged.connect(self.displayExpressionChanged)
-        self.feature_title_expression = QgsExpression(display_expression)
-
-        self.relations = QgsProject.instance().relationManager().referencedRelations(self.layer)
-        relation_names = [""] + [rel.name() for rel in self.relations]
-        rel_icon = QIcon(QgsApplication.getThemeIcon("relation.svg"))
-        for item in relation_names:
-            self.relationComboBox.addItem(rel_icon, item)
-        self.relationComboBox.currentIndexChanged.connect(self.relationChanged)
-
-        self.filtered_fields = QgsFields()
-
-        self.fieldComboBox.setAllowEmptyFieldName(True)
-        self.fieldComboBox.fieldChanged.connect(self.fieldChanged)
-
-        # pagination
+        # Pagination
         self.offset = 0  # inclusive
         self.limit = 9  # change this to conrol how many frames per page
         self.next_offset = 0
@@ -95,16 +96,32 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.previousPageButton = None
         self.nextPageButton = None
 
+        # Realtions
         self.relation = None
+        self.relations = QgsProject.instance().relationManager().referencedRelations(self.layer)
+        relation_names = [""] + [rel.name() for rel in self.relations]
+
+        # Relation combobox
+        self.relationComboBox.currentIndexChanged.connect(self.handelRelationChange)
+        rel_icon = QIcon(QgsApplication.getThemeIcon("relation.svg"))
+        for item in relation_names:
+            self.relationComboBox.addItem(rel_icon, item)
+
+        # Field combobox
+        self.filtered_fields = QgsFields()
+        self.fieldComboBox.setAllowEmptyFieldName(True)
+        self.fieldComboBox.handleFieldChange.connect(self.handleFieldChange)
+
+        # Instantiate GUI
         if relation_index == 0 or relation_index > len(
             self.relations
         ):  # if index 0 or not within len of relations, this can happen if settings are incorrectly read:
-            # manually call relationChanged() as setCurrentIndex wont call it as signal hasn't chaged
-            self.relationChanged(0)
+            # manually call handelRelationChange() as setCurrentIndex wont call it as signal hasn't chaged
+            self.handelRelationChange(0)
         else:
             self.relationComboBox.setCurrentIndex(relation_index)
 
-    def relationChanged(self, index):
+    def handelRelationChange(self, index):
         self.filtered_fields.clear()
         self.fieldComboBox.clear()
         self.relation_index = index
@@ -125,11 +142,11 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         if self.image_field not in [f.name() for f in self.filtered_fields]:
             self.image_field = ""
-            self.fieldChanged("")  # this will call referesh method
+            self.handleFieldChange("")  # this will call referesh method
         else:
             self.fieldComboBox.setField(self.image_field)  # this will call referesh method
 
-    def fieldChanged(self, fieldName):
+    def handleFieldChange(self, fieldName):
         self.image_field = fieldName
         if not fieldName:
             self.fieldComboBox.setStyleSheet("QComboBox { background-color: #3399ff; }")
@@ -139,52 +156,52 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             field = self.filtered_fields[field_index]
             self.field_type = field.type()
 
-        self.refresh_features()
+        self.refreshFeatures()
 
-    def displayExpressionChanged(self):
+    def handleDisplayExpressionChange(self):
         display_expression = self.layer.displayExpression()
         self.feature_title_expression = QgsExpression(display_expression)
         # todo: clear frames
-        self.refresh_images()
+        self.refreshFrames()
 
-    def handle_b_combobox_change(self, index):
-        if self.b_combo_box_index == 0:
-            self.canvas.extentsChanged.disconnect(self.refresh_features)
-        elif self.b_combo_box_index == 1:
-            self.layer.selectionChanged.disconnect(self.refresh_features)
+    def handleFFComboboxChange(self, index):
+        if self.ff_combo_box_index == 0:
+            self.canvas.extentsChanged.disconnect(self.refreshFeatures)
+        elif self.ff_combo_box_index == 1:
+            self.layer.selectionChanged.disconnect(self.refreshFeatures)
 
         if index == 0:
-            self.canvas.extentsChanged.connect(self.refresh_features)
+            self.canvas.extentsChanged.connect(self.refreshFeatures)
         elif index == 1:
-            self.layer.selectionChanged.connect(self.refresh_features)
+            self.layer.selectionChanged.connect(self.refreshFeatures)
 
-        self.b_combo_box_index = index
+        self.ff_combo_box_index = index
 
-        self.refresh_features()
+        self.refreshFeatures()
 
-    def refresh_features(self):
+    def refreshFeatures(self):
         start_time = time.time()  # Start time before the operation
         print("Refreshing features...")
 
         self.next_offset, self.offset = 0, 0
-        if self.b_combo_box_index == 0:
+        if self.ff_combo_box_index == 0:
             extent = self.canvas.extent()
             request = QgsFeatureRequest().setFilterRect(extent)
             self.feature_ids = [f.id() for f in self.layer.getFeatures(request)]
-        elif self.b_combo_box_index == 1:
+        elif self.ff_combo_box_index == 1:
             selected_ids = self.layer.selectedFeatureIds()
             self.feature_ids = selected_ids
-        elif self.b_combo_box_index == 2:
+        elif self.ff_combo_box_index == 2:
             self.feature_ids = [f.id() for f in self.layer.getFeatures()]
 
         self.feature_ids.sort()
         print("Features: {} meiliseconds".format((time.time() - start_time) * 1000))
 
-        self.refresh_images()
+        self.refreshFrames()
 
-    def refresh_images(self, reverse=False):
+    def refreshFrames(self, reverse=False):
         start_time = time.time()  # Start time before the operation
-        print("Refreshing images...")
+        print("Refreshing frames...")
 
         context = QgsExpressionContext()
 
@@ -199,7 +216,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
         self.setWindowTitle(f"{self.layer.name()} -- Features Total: {total_count}, Filtered: {filtered_count}")
 
         if not self.image_field or not self.feature_ids:
-            self.remove_page_buttons()
+            self.removePageButtons()
             print("Images: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
             return
 
@@ -292,14 +309,14 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                 row += 1
 
         if self.offset == 0 and len(frames) < 9:  # no pagination required
-            self.remove_page_buttons()
+            self.removePageButtons()
         else:
-            self.add_page_buttons()
+            self.addPageButtons()
 
         self.show()
-        print("Images: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
+        print("Frames: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
 
-    def remove_page_buttons(self):
+    def removePageButtons(self):
         if self.previousPageButton:
             self.paginationButtonsLayout.removeWidget(self.previousPageButton)
             self.previousPageButton.deleteLater()
@@ -310,11 +327,11 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             self.nextPageButton.deleteLater()
             self.nextPageButton = None
 
-    def add_page_buttons(self):
+    def addPageButtons(self):
         if not self.previousPageButton:
             self.previousPageButton = QPushButton(" Previous", self)
             self.previousPageButton.setIcon(QgsApplication.getThemeIcon("/mActionArrowLeft.svg"))
-            self.previousPageButton.clicked.connect(self.previous_page)
+            self.previousPageButton.clicked.connect(self.displayPrevPage)
             self.paginationButtonsLayout.addWidget(self.previousPageButton)
             self.previousPageButton.setMaximumSize(150, 50)
 
@@ -324,26 +341,28 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             self.nextPageButton = QPushButton("Next ", self)
             self.nextPageButton.setIcon(QgsApplication.getThemeIcon("/mActionArrowRight.svg"))
             self.nextPageButton.setLayoutDirection(Qt.RightToLeft)
-            self.nextPageButton.clicked.connect(self.next_page)
+            self.nextPageButton.clicked.connect(self.displayNextPage)
             self.paginationButtonsLayout.addWidget(self.nextPageButton)
             self.nextPageButton.setMaximumSize(150, 50)
 
         self.nextPageButton.setEnabled(self.next_offset < len(self.feature_ids))
 
-    def previous_page(self):
-        self.refresh_images(reverse=True)
+    def displayPrevPage(self):
+        self.refreshFrames(reverse=True)
 
-    def next_page(self):
+    def displayNextPage(self):
         self.offset = self.next_offset
-        self.refresh_images()
+        self.refreshFrames()
 
     def closeEvent(self, event):
+        """Extends the super.closeEvent"""
+
         # When window is closed, disconnect  signals
-        self.layer.displayExpressionChanged.disconnect(self.displayExpressionChanged)
-        if self.b_combo_box_index == 0:
-            self.canvas.extentsChanged.disconnect(self.refresh_features)
-        elif self.b_combo_box_index == 1:
-            self.layer.selectionChanged.disconnect(self.refresh_features)
+        self.layer.handleDisplayExpressionChange.disconnect(self.handleDisplayExpressionChange)
+        if self.ff_combo_box_index == 0:
+            self.canvas.extentsChanged.disconnect(self.refreshFeatures)
+        elif self.ff_combo_box_index == 1:
+            self.layer.selectionChanged.disconnect(self.refreshFeatures)
 
         # save the dialog's position and size
         self.settings.setValue("geometry", self.saveGeometry())
