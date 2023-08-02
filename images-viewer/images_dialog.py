@@ -152,6 +152,9 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
 
     def refresh_features(self):
+        start_time = time.time()  # Start time before the operation
+        print("Refreshing features...")
+
         self.next_offset, self.offset = 0, 0
         if self.b_combo_box_index == 0:
             extent = self.canvas.extent()
@@ -164,12 +167,14 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             self.feature_ids = [f.id() for f in self.layer.getFeatures()]
 
         self.feature_ids.sort()
+        print("Features: {} meiliseconds".format((time.time() - start_time)*1000))
+
         self.refresh_images()
 
     def refresh_images(self, reverse=False):
 
         start_time = time.time()  # Start time before the operation
-        print("Refreshing images...", self.offset, self.next_offset, reverse)
+        print("Refreshing images...")
 
         context = QgsExpressionContext()
 
@@ -185,7 +190,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
 
         if not self.image_field or not self.feature_ids:
             self.remove_page_buttons()
-            print("Refresh operation took: %s seconds" % (time.time() - start_time))  # Print out the time it took
+            print("Images: {} meiliseconds".format((time.time() - start_time)*1000))  # Print out the time it took
             return
 
         frames = []
@@ -249,14 +254,11 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
                 # traceback.print_tb(e.__traceback__)
                 self.iface.messageBar().pushMessage("Image Viewer", f"{e.__class__.__name__}: Feature # {f_id}: {str(e)}", level=1, duration=3)
 
-        print(reverse)
         if reverse:
             frames.reverse()
             self.offset -= count
 
-        print(self.offset, count)
         self.next_offset = self.offset + count
-        print(self.next_offset)
 
         row = 0
         col = 0
@@ -274,7 +276,7 @@ class ImageDialog(QtBaseClass, Ui_Dialog):
             self.add_page_buttons()
 
         self.show()
-        print("Refresh operation took: %s seconds" % (time.time() - start_time))  # Print out the time it took
+        print("Images: {} meiliseconds".format((time.time() - start_time)*1000))  # Print out the time it took
 
     def remove_page_buttons(self):
         if self.previousPageButton:
