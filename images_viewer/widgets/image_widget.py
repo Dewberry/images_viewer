@@ -3,6 +3,8 @@ from qgis.PyQt.QtWidgets import QOpenGLWidget
 
 
 class ImageWidget(QOpenGLWidget):
+    """Open GL widget to display static images."""
+
     def __init__(self, image):
         super().__init__()
         self.image = image

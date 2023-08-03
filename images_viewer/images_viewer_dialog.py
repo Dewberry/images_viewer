@@ -121,6 +121,11 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.relationComboBox.setCurrentIndex(relation_index)
 
     def handelRelationChange(self, index):
+        """
+        Set self.realtion to relation at current index.
+        Regenerate field comboBox.
+        Call handleFieldChange method at the end.
+        """
         self.filtered_fields.clear()
         self.fieldComboBox.clear()
         self.relation_index = index

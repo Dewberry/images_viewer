@@ -10,6 +10,7 @@ from images_viewer.widgets import Image360Widget, ImageWidget
 class ImageFactory:
     @classmethod
     def extract_data(cls, field_content, field_type):
+        """Given some data and the type of data, convert data to PIL Image"""
         if not field_content:
             return None
 
@@ -24,6 +25,7 @@ class ImageFactory:
 
     @classmethod
     def create_widget(cls, data):
+        """Creates an Image Widget based on the type of Image Static vs 360"""
         if cls.is_360(data):
             return Image360Widget(data)
         else:
