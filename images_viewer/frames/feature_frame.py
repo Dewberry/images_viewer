@@ -1,4 +1,3 @@
-from images_viewer.utils import ImageFactory, create_tool_button
 from PIL import Image as PILImage
 from PyQt5.QtCore import QSize, Qt
 from PyQt5.QtWidgets import (
@@ -9,6 +8,8 @@ from PyQt5.QtWidgets import (
     QToolBar,
     QVBoxLayout,
 )
+
+from images_viewer.utils import ImageFactory, create_tool_button
 
 
 class FeatureFrame(QFrame):
