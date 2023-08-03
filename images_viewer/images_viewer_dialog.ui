@@ -33,17 +33,15 @@
                 <number>0</number>
             </property>
             <item>
-                <widget class="QWidget" name="topToolBarContainer">
-                    <layout class="QHBoxLayout" name="topToolBarLayout">
-                        <property name="margin">
-                            <number>0</number>
-                        </property>
-                        <item>
-                            <widget class="QToolBar" name="topToolBar">
-                            </widget>
-                        </item>
-                    </layout>
-                </widget>
+                <layout class="QHBoxLayout" name="topBarLayout">
+                    <property name="margin">
+                        <number>0</number>
+                    </property>
+                    <item>
+                        <widget class="QToolBar" name="topToolBar">
+                        </widget>
+                    </item>
+                </layout>
             </item>
             <item>
                 <widget class="QScrollArea" name="mainScrollArea">
@@ -60,7 +58,7 @@
                 </widget>
             </item>
             <item>
-                <layout class="QHBoxLayout" name="bottomBar">
+                <layout class="QHBoxLayout" name="bottomBarLayout">
                     <property name="margin">
                         <number>5</number>
                     </property>
@@ -68,56 +66,58 @@
                         <number>5</number>
                     </property>
                     <item>
-                        <widget class="QComboBox" name="bottomComboBox">
-                            <property name="sizePolicy">
-                                <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-                                    <horstretch>0</horstretch>
-                                    <verstretch>0</verstretch>
-                                </sizepolicy>
+                        <widget class="QComboBox" name="featuresFilterComboBox">
+                        </widget>
+                    </item>
+                    <item>
+                        <spacer name="bottomBarSpacerLeft">
+                            <property name="orientation">
+                                <enum>Qt::Horizontal</enum>
+                            </property>
+                            <property name="sizeType">
+                                <enum>QSizePolicy::Expanding</enum>
+                            </property>
+                            <property name="sizeHint" stdset="0">
+                                <size>
+                                    <width>1</width>
+                                    <height>1</height>
+                                </size>
+                            </property>
+                        </spacer>
+                    </item>
+                    <item>
+                        <layout class="QHBoxLayout" name="paginationButtonsLayout">
+                        </layout>
+                    </item>
+                    <item>
+                        <spacer name="bottomBarSpacerRight">
+                            <property name="orientation">
+                                <enum>Qt::Horizontal</enum>
+                            </property>
+                            <property name="sizeType">
+                                <enum>QSizePolicy::Expanding</enum>
+                            </property>
+                            <property name="sizeHint" stdset="0">
+                                <size>
+                                    <width>1</width>
+                                    <height>1</height>
+                                </size>
+                            </property>
+                        </spacer>
+                    </item>
+                    <item>
+                        <widget class="QComboBox" name="relationComboBox">
+                            <property name="toolTip">
+                                <string>Select relationship</string>
                             </property>
                         </widget>
                     </item>
                     <item>
-                        <spacer name="horizontalSpacer">
-                            <property name="orientation">
-                                <enum>Qt::Horizontal</enum>
+                        <widget class="QgsFieldComboBox" name="fieldComboBox">
+                            <property name="toolTip">
+                                <string>Select field containing image data or url</string>
                             </property>
-                            <property name="sizeType">
-                                <enum>QSizePolicy::Expanding</enum>
-                            </property>
-                            <property name="sizeHint" stdset="0">
-                                <size>
-                                    <width>1</width>
-                                    <height>1</height>
-                                </size>
-                            </property>
-                        </spacer>
-                    </item>
-                    <item>
-                        <layout class="QHBoxLayout" name="paginationLayout">
-                        </layout>
-                    </item>
-                    <item>
-                        <spacer name="horizontalSpacer2">
-                            <property name="orientation">
-                                <enum>Qt::Horizontal</enum>
-                            </property>
-                            <property name="sizeType">
-                                <enum>QSizePolicy::Expanding</enum>
-                            </property>
-                            <property name="sizeHint" stdset="0">
-                                <size>
-                                    <width>1</width>
-                                    <height>1</height>
-                                </size>
-                            </property>
-                        </spacer>
-                    </item>
-                    <item>
-                        <widget class="QComboBox" name="relationComboBox" />
-                    </item>
-                    <item>
-                        <widget class="QgsFieldComboBox" name="fieldComboBox" />
+                        </widget>
                     </item>
                 </layout>
             </item>

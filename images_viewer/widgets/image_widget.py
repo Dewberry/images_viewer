@@ -1,7 +1,10 @@
 from OpenGL.GL import *
 from qgis.PyQt.QtWidgets import QOpenGLWidget
 
+
 class ImageWidget(QOpenGLWidget):
+    """Open GL widget to display static images."""
+
     def __init__(self, image):
         super().__init__()
         self.image = image
@@ -13,15 +16,35 @@ class ImageWidget(QOpenGLWidget):
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glClearColor(1.0, 1.0, 1.0, 1.0)
-        self.texture_id = glGenTextures(1) # Create an OpenGL texture
+        self.texture_id = glGenTextures(1)  # Create an OpenGL texture
         glBindTexture(GL_TEXTURE_2D, self.texture_id)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-        if self.image.mode == 'RGBA':
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, self.image_width, self.image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, self.image.tobytes())
-        elif self.image.mode == 'RGB':
+        if self.image.mode == "RGBA":
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_RGBA,
+                self.image_width,
+                self.image_height,
+                0,
+                GL_RGBA,
+                GL_UNSIGNED_BYTE,
+                self.image.tobytes(),
+            )
+        elif self.image.mode == "RGB":
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1)  # Default alignment is 4, each pixel is 3 bytes so pad 1 byte
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.image_width, self.image_height, 0, GL_RGB, GL_UNSIGNED_BYTE, self.image.tobytes())  # Upload the image data to the texture
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_RGB,
+                self.image_width,
+                self.image_height,
+                0,
+                GL_RGB,
+                GL_UNSIGNED_BYTE,
+                self.image.tobytes(),
+            )  # Upload the image data to the texture
 
     def paintGL(self):
         glClear(GL_COLOR_BUFFER_BIT)
@@ -34,11 +57,11 @@ class ImageWidget(QOpenGLWidget):
         if texture_aspect_ratio > viewport_aspect_ratio:
             # Texture is wider than viewport, adjust quad's height
             quad_width = 2.0
-            quad_height = (self.width() / texture_aspect_ratio)/self.height() * 2.0
+            quad_height = (self.width() / texture_aspect_ratio) / self.height() * 2.0
         else:
             # Texture is taller than viewport, adjust quad's width
             quad_height = 2.0
-            quad_width = (self.height() * texture_aspect_ratio)/self.width() * 2.0
+            quad_width = (self.height() * texture_aspect_ratio) / self.width() * 2.0
 
         quad_left = -quad_width / 2.0
         quad_right = quad_width / 2.0

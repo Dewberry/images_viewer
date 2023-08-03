@@ -1,20 +1,30 @@
+from functools import partial
 from typing import List
-from PyQt5.QtWidgets import  QToolBar
-from PyQt5.QtCore import QSize
-from qgis.core import QgsFeature, QgsExpression, QgsExpressionContext
 
 from PIL import Image as PILImage
-from functools import partial
+from PyQt5.QtCore import QSize
+from PyQt5.QtWidgets import QToolBar
+from qgis.core import QgsExpression, QgsExpressionContext, QgsFeature
 
-from .utils import create_tool_button
+from images_viewer.utils import ImageFactory, create_tool_button
+
 from .feature_frame import FeatureFrame
-
-from .image_factory import ImageFactory
 
 
 class ChildrenFeatureFrame(FeatureFrame):
-
-    def __init__(self, iface, canvas, feature_layer, feature, feature_title="", children_layer=None, image_field = "", field_type = None, children: List[QgsFeature]= [], parent=None):
+    def __init__(
+        self,
+        iface,
+        canvas,
+        feature_layer,
+        feature,
+        feature_title="",
+        children_layer=None,
+        image_field="",
+        field_type=None,
+        children: List[QgsFeature] = [],
+        parent=None,
+    ):
         super().__init__(iface, canvas, feature_layer, feature, feature_title, parent)
 
         self.image_field = image_field
@@ -28,7 +38,6 @@ class ChildrenFeatureFrame(FeatureFrame):
         self.prevButton = None
         self.nextButton = None
 
-
     def buildUI(self, data: PILImage):
         # we get first time data from ouside, so that it can be generated outside of main thread
         self.frame_layout.addWidget(self.createTitleLabel(self.feature_title))
@@ -37,7 +46,9 @@ class ChildrenFeatureFrame(FeatureFrame):
         context = QgsExpressionContext()
         context.setFeature(child_feature)
         child_feature_title = self.child_title_expression.evaluate(context)
-        self.frame_layout.addWidget(self.createTitleLabel(child_feature_title, 12, "#E9E7E3", 30)) # to do make it subfeature title
+        self.frame_layout.addWidget(
+            self.createTitleLabel(child_feature_title, 12, "#E9E7E3", 30)
+        )  # to do make it subfeature title
 
         self.frame_layout.addWidget(self.createImageWidget(data))
         self.toolbar_layout.addWidget(self.createFeatureToolBar())
@@ -48,10 +59,10 @@ class ChildrenFeatureFrame(FeatureFrame):
     # def getChildTitle(self, )
 
     def _createChildrenToolBar(self) -> QToolBar:
-        self.prevButton = create_tool_button('mActionArrowLeft.svg', "Previous",  partial(self._switch_child, -1))
+        self.prevButton = create_tool_button("mActionArrowLeft.svg", "Previous", partial(self._switch_child, -1))
         self.prevButton.setEnabled(False)
-        self.nextButton = create_tool_button('mActionArrowRight.svg', "Next", partial(self._switch_child, 1))
-        if  len(self.children_features) == 1:
+        self.nextButton = create_tool_button("mActionArrowRight.svg", "Next", partial(self._switch_child, 1))
+        if len(self.children_features) == 1:
             self.nextButton.setEnabled(False)
 
         toolbar = QToolBar()
@@ -61,9 +72,9 @@ class ChildrenFeatureFrame(FeatureFrame):
 
         return toolbar
 
-    def _switch_child(self,  direction):
+    def _switch_child(self, direction):
         # function to switch between child features
-        new_index = (self.current_child_index  + direction)
+        new_index = self.current_child_index + direction
         self.prevButton.setEnabled(new_index > 0)
         self.nextButton.setEnabled(new_index < len(self.children_features) - 1)
 
@@ -76,12 +87,10 @@ class ChildrenFeatureFrame(FeatureFrame):
         old_child_title_widget = self.frame_layout.itemAt(1).widget()
         self.frame_layout.replaceWidget(old_child_title_widget, new_child_title_widget)
 
-
         data = self._get_child_image_data(child_feature)
         new_image_widget = self.createImageWidget(data)
         old_image_widget = self.frame_layout.itemAt(2).widget()
         self.frame_layout.replaceWidget(old_image_widget, new_image_widget)
-
 
         self.current_child_index = new_index
 

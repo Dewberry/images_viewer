@@ -21,6 +21,14 @@
  This script initializes the plugin, making it known to QGIS.
 """
 
+__author__ = "Abdul Raheem Siddiqui"
+__date__ = "2023-07-14"
+__copyright__ = "(C) 2022 by Dewberry"
+
+# This will get replaced with a git SHA1 when you do a git archive
+
+__revision__ = "$Format:%H$"
+
 
 # noinspection PyPep8Naming
 def classFactory(iface):  # pylint: disable=invalid-name
@@ -30,5 +38,6 @@ def classFactory(iface):  # pylint: disable=invalid-name
     :type iface: QgsInterface
     """
     #
-    from .images_viewer import ImagesViewer
-    return ImagesViewer(iface)
+    from .images_viewer import ImagesViewerPlugin
+
+    return ImagesViewerPlugin(iface)
