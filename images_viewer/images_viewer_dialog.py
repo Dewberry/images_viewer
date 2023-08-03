@@ -24,12 +24,10 @@ from qgis.core import (
     QgsProject,
 )
 
-from .children_feature_frame import ChildrenFeatureFrame
-from .feature_frame import FeatureFrame
-from .image_factory import ImageFactory
-from .utils import create_tool_button
+from images_viewer.frames import ChildrenFeatureFrame, FeatureFrame
+from images_viewer.utils import ImageFactory, create_tool_button
 
-Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_dialog.ui"))
+Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_viewer_dialog.ui"))
 
 
 class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
@@ -60,20 +58,10 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
         self.canvas = self.iface.mapCanvas()
 
-        display_expression = self.layer.displayExpression()
-        self.layer.handleDisplayExpressionChange.connect(self.handleDisplayExpressionChange)
-        self.feature_title_expression = QgsExpression(display_expression)
-
         # Top tool bar
         refreshButton = create_tool_button("mActionRefresh.svg", "Refresh", self.refreshFeatures)
         self.topToolBar.setIconSize(QSize(20, 20))
         self.topToolBar.addWidget(refreshButton)
-
-        # Bottom tool bar
-
-        # Feature Filter
-        self.featuresFilterComboBox.setIconSize(QSize(20, 20))  # set icon
-        self.featuresFilterComboBox.currentIndexChanged.connect(self.handleFFComboboxChange)
 
         self.featuresFilterComboBox.addItem(
             QIcon(QgsApplication.getThemeIcon("mActionOpenTableVisible.svg")), "Show Visible Features"
@@ -84,9 +72,30 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.featuresFilterComboBox.addItem(
             QIcon(QgsApplication.getThemeIcon("mActionOpenTable.svg")), "Show All Features"
         )  # index 2
+        self.featuresFilterComboBox.setIconSize(QSize(20, 20))  # set icon
+        self.featuresFilterComboBox.currentIndexChanged.connect(self.handleFFComboboxChange)
 
+        # Feature Filter
         self.ff_combo_box_index = 0  # Start with visible
         self.canvas.extentsChanged.connect(self.refreshFeatures)
+
+        display_expression = self.layer.displayExpression()
+        self.layer.displayExpressionChanged.connect(self.handleDisplayExpressionChange)
+        self.feature_title_expression = QgsExpression(display_expression)
+
+        # Realtions
+        self.relations = QgsProject.instance().relationManager().referencedRelations(self.layer)
+        relation_names = [None] + [rel.name() for rel in self.relations]
+        # Relation combobox
+        rel_icon = QIcon(QgsApplication.getThemeIcon("relation.svg"))
+        for item in relation_names:
+            self.relationComboBox.addItem(rel_icon, item)
+        self.relationComboBox.currentIndexChanged.connect(self.handelRelationChange)
+
+        # Field combobox
+        self.filtered_fields = QgsFields()
+        self.fieldComboBox.setAllowEmptyFieldName(True)
+        self.fieldComboBox.fieldChanged.connect(self.handleFieldChange)
 
         # Pagination
         self.offset = 0  # inclusive
@@ -96,23 +105,13 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.previousPageButton = None
         self.nextPageButton = None
 
-        # Realtions
-        self.relation = None
-        self.relations = QgsProject.instance().relationManager().referencedRelations(self.layer)
-        relation_names = [""] + [rel.name() for rel in self.relations]
-
-        # Relation combobox
-        self.relationComboBox.currentIndexChanged.connect(self.handelRelationChange)
-        rel_icon = QIcon(QgsApplication.getThemeIcon("relation.svg"))
-        for item in relation_names:
-            self.relationComboBox.addItem(rel_icon, item)
-
         # Field combobox
         self.filtered_fields = QgsFields()
         self.fieldComboBox.setAllowEmptyFieldName(True)
-        self.fieldComboBox.handleFieldChange.connect(self.handleFieldChange)
+        self.fieldComboBox.fieldChanged.connect(self.handleFieldChange)
 
         # Instantiate GUI
+        self.relation = None
         if relation_index == 0 or relation_index > len(
             self.relations
         ):  # if index 0 or not within len of relations, this can happen if settings are incorrectly read:
@@ -286,8 +285,9 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                 frames.append(frame)
 
             except Exception as e:
-                # import traceback
-                # traceback.print_tb(e.__traceback__)
+                import traceback
+
+                traceback.print_tb(e.__traceback__)
                 self.iface.messageBar().pushMessage(
                     "Image Viewer", f"{e.__class__.__name__}: Feature # {f_id}: {str(e)}", level=1, duration=3
                 )
@@ -358,7 +358,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         """Extends the super.closeEvent"""
 
         # When window is closed, disconnect  signals
-        self.layer.handleDisplayExpressionChange.disconnect(self.handleDisplayExpressionChange)
+        self.layer.displayExpressionChanged.disconnect(self.handleDisplayExpressionChange)
         if self.ff_combo_box_index == 0:
             self.canvas.extentsChanged.disconnect(self.refreshFeatures)
         elif self.ff_combo_box_index == 1:

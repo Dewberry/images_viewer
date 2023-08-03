@@ -25,8 +25,7 @@ from qgis.PyQt.QtCore import QCoreApplication, QSettings, QTranslator
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
-from images_viewer.core import ImagesViewerDialog
-
+from .images_viewer_dialog import ImagesViewerDialog
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 icon_path = os.path.join(current_dir, "icon.svg")
