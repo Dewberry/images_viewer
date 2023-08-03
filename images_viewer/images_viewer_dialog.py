@@ -58,11 +58,16 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
         self.canvas = self.iface.mapCanvas()
 
+        display_expression = self.layer.displayExpression()
+        self.layer.displayExpressionChanged.connect(self.handleDisplayExpressionChange)
+        self.feature_title_expression = QgsExpression(display_expression)
+
         # Top tool bar
         refreshButton = create_tool_button("mActionRefresh.svg", "Refresh", self.refreshFeatures)
         self.topToolBar.setIconSize(QSize(20, 20))
         self.topToolBar.addWidget(refreshButton)
 
+        # Feature Filter
         self.featuresFilterComboBox.addItem(
             QIcon(QgsApplication.getThemeIcon("mActionOpenTableVisible.svg")), "Show Visible Features"
         )  # index 0
@@ -75,17 +80,12 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.featuresFilterComboBox.setIconSize(QSize(20, 20))  # set icon
         self.featuresFilterComboBox.currentIndexChanged.connect(self.handleFFComboboxChange)
 
-        # Feature Filter
         self.ff_combo_box_index = 0  # Start with visible
         self.canvas.extentsChanged.connect(self.refreshFeatures)
 
-        display_expression = self.layer.displayExpression()
-        self.layer.displayExpressionChanged.connect(self.handleDisplayExpressionChange)
-        self.feature_title_expression = QgsExpression(display_expression)
-
         # Realtions
         self.relations = QgsProject.instance().relationManager().referencedRelations(self.layer)
-        relation_names = [None] + [rel.name() for rel in self.relations]
+        relation_names = [""] + [rel.name() for rel in self.relations]
         # Relation combobox
         rel_icon = QIcon(QgsApplication.getThemeIcon("relation.svg"))
         for item in relation_names:
@@ -104,11 +104,6 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
         self.previousPageButton = None
         self.nextPageButton = None
-
-        # Field combobox
-        self.filtered_fields = QgsFields()
-        self.fieldComboBox.setAllowEmptyFieldName(True)
-        self.fieldComboBox.fieldChanged.connect(self.handleFieldChange)
 
         # Instantiate GUI
         self.relation = None
