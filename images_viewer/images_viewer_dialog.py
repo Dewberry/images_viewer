@@ -172,7 +172,9 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         display_expression = self.layer.displayExpression()
         self.feature_title_expression = QgsExpression(display_expression)
         self.features_data_map.clear()  # clear all cached data
+        self.features_frames_map.clear()
 
+        self.abondonWorkers(page_data=True)
         self.page_data_worker = PageDataWorker(
             self.layer,
             self.feature_ids,
@@ -221,6 +223,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             f"{self.layer.name()} -- Features Total: {self.layer.featureCount()}, Filtered: {len(self.feature_ids)}"
         )
 
+        self.abondonWorkers(page_data=True)
         self.page_data_worker = PageDataWorker(
             self.layer,
             self.feature_ids,
@@ -243,6 +246,22 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.page_ids = page_f_ids
             self.refreshGrid()
             self.refreshPageButtons()
+
+        # get data for the next page in anticipation of user clicking next soon
+        # do not connect to its signal, so that it doesn't actually display the next page
+        self.abondonWorkers(page_data=True)
+        self.page_data_worker = PageDataWorker(
+            self.layer,
+            self.feature_ids,
+            self.features_data_map,
+            self.image_field,
+            self.field_type,
+            self.next_page_start,
+            self.page_size,
+            self.relation,
+        )
+        self.page_data_worker.start()
+        self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
 
     def refreshGrid(self):
         # should run in main thread
@@ -304,6 +323,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                 row += 1
 
         print("Grid: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
+        print("current length of freames store", len(self.features_frames_map))
 
     def refreshPageButtons(self):
         self.previousPageButton.setEnabled(self.page_start > 0)
