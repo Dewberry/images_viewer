@@ -26,6 +26,7 @@ from qgis.core import (
     QgsFeatureRequest,
     QgsFields,
     QgsProject,
+    QgsVectorLayer,
 )
 
 from images_viewer.frames import ChildrenFeatureFrame, FeatureFrame
@@ -197,13 +198,15 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
     """Main window for Images Viewer"""
 
     def __init__(self, iface, parent=None):
-        super(ImagesViewerDialog, self).__init__(parent)
-        self.setupUi(self)
-
         self.iface = iface
         self.layer = self.iface.activeLayer()
         if not self.layer:
             raise ValueError("Layer is not defined")
+        if not type(self.layer) == QgsVectorLayer:
+            raise ValueError("Layer is not a Vector Layer")
+
+        super(ImagesViewerDialog, self).__init__(parent)
+        self.setupUi(self)
         self.setWindowTitle(self.layer.name())
 
         # Restore previous settings
@@ -321,7 +324,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             field = self.filtered_fields[field_index]
             self.field_type = field.type()
 
-        self.refreshFeatures()
+            self.refreshFeatures()
 
     def handleDisplayExpressionChange(self):
         display_expression = self.layer.displayExpression()
