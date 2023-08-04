@@ -10,7 +10,10 @@ Variables should be snake_case to follow python's guidlines
 
 import os
 import time
+from dataclasses import dataclass
+from typing import List
 
+from PIL import Image as PILImage
 from PyQt5 import uic
 from PyQt5.QtCore import QSettings, QSize, Qt, QThread, QVariant, pyqtSignal
 from PyQt5.QtGui import QIcon
@@ -19,6 +22,7 @@ from qgis.core import (
     QgsApplication,
     QgsExpression,
     QgsExpressionContext,
+    QgsFeature,
     QgsFeatureRequest,
     QgsFields,
     QgsProject,
@@ -62,6 +66,133 @@ class FeaturesWorker(QThread):
             print("!!!abondoning")
 
 
+class PageDataWorker(QThread):
+    page_ready = pyqtSignal(int, int, list)
+
+    def __init__(
+        self,
+        layer,
+        feature_ids,
+        features_data_map,
+        image_field,
+        field_type,
+        page_start,
+        page_size,
+        relation,
+        reverse=False,
+    ):
+        QThread.__init__(self)
+        self.layer = layer
+        self.feature_ids = feature_ids
+        self.features_data_map = features_data_map
+        self.image_field = image_field
+        self.field_type = field_type
+        self.page_start = page_start
+        self.page_size = page_size
+        self.relation = relation
+        self.reverse = reverse
+        self.abandon = False
+
+    def run(self):
+        start_time = time.time()  # Start time before the operation
+        print("Page data worker starting work ...")
+
+        display_expression = self.layer.displayExpression()
+        feature_title_expression = QgsExpression(display_expression)
+        context = QgsExpressionContext()
+
+        # although it is not expected the page_start to be less than 0 but this is a safeguard
+        # if for some error page_start is less than 0
+        # or field changed and that messed up page_start and next_page_start
+        if self.page_start < 0:
+            self.reverse = False
+            self.page_start == 0
+
+        # we will always have one element int the range
+        if not self.reverse or self.page_start == 0:
+            feature_range = range(self.page_start, len(self.feature_ids), 1)
+        else:
+            feature_range = range(self.page_start - 1, -1, -1)
+
+        page_f_ids = []
+        count = 0
+
+        for i in feature_range:
+            if self.abandon:
+                print("!!!abondoning page worker")
+                return
+
+            if len(page_f_ids) >= self.page_size:
+                break
+
+            count += 1
+            f_id = self.feature_ids[i]
+
+            if f_id in self.features_data_map:  # do not extract data again
+                if self.features_data_map[f_id]:  # if value is None it mean we don't need to have it on page
+                    page_f_ids.append(f_id)
+                continue
+            try:
+                feature = self.layer.getFeature(f_id)
+
+                # doing this at the top so that if this fails we short circuit
+                data = None
+                field_content = None
+                child_features = []
+
+                if not self.relation:
+                    field_content = feature[self.image_field]
+                else:
+                    # get features from the child layer and get the first one
+                    child_features = [f for f in self.relation.getRelatedFeatures(feature)]
+                    if child_features:
+                        first_child_feature = child_features[0]  # take first child feature
+                        field_content = first_child_feature[self.image_field]
+
+                data = ImageFactory.extract_data(field_content, self.field_type)
+
+                if not data:
+                    f_data = None
+                else:
+                    context.setFeature(feature)
+                    f_data = FeatureData(feature, feature_title_expression.evaluate(context), data, child_features)
+                    page_f_ids.append(f_id)
+
+                self.features_data_map[f_id] = f_data
+
+            except Exception as e:
+                import traceback
+
+                traceback.print_tb(e.__traceback__)
+                print(
+                    "Image Viewer Page Worker", f"{e.__class__.__name__}: Feature # {f_id}: {str(e)}"
+                )  # to do convert it to log
+
+        if self.reverse:
+            page_f_ids.reverse()
+            self.page_start -= count
+
+        next_page_start = self.page_start + count
+
+        print("Page Data [{}]: {} meiliseconds".format(count, (time.time() - start_time) * 1000))
+
+        if not self.abandon:  # Check if the thread should be abandoned
+            print("current lenght of data_store", len(self.features_data_map))
+            self.page_ready.emit(self.page_start, next_page_start, page_f_ids)
+        else:
+            print("!!!abondoning page worker")
+
+
+@dataclass
+class FeatureData:
+    """Stores feature data needed to create a frame"""
+
+    feature: QgsFeature
+    title: str
+    data: PILImage
+    children: List[QgsFeature]
+
+
 class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
     """Main window for Images Viewer"""
 
@@ -91,11 +222,11 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.canvas = self.iface.mapCanvas()
         self.features_worker = None
         self.feature_ids = []
-        self.data_worker = None
+        self.page_data_worker = None
+        self.page_ids = []
+        self.features_data_map = {}
 
-        display_expression = self.layer.displayExpression()
         self.layer.displayExpressionChanged.connect(self.handleDisplayExpressionChange)
-        self.feature_title_expression = QgsExpression(display_expression)
 
         # Top tool bar
         refreshButton = create_tool_button("mActionRefresh.svg", "Refresh", self.refreshFeatures)
@@ -133,9 +264,9 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.fieldComboBox.fieldChanged.connect(self.handleFieldChange)
 
         # Pagination
-        self.offset = 0  # inclusive
-        self.limit = 9  # change this to conrol how many frames per page
-        self.next_offset = 0
+        self.page_start = 0  # inclusive
+        self.page_size = 9  # change this to conrol how many frames per page
+        self.next_page_start = 0
 
         self.previousPageButton = None
         self.nextPageButton = None
@@ -195,8 +326,21 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
     def handleDisplayExpressionChange(self):
         display_expression = self.layer.displayExpression()
         self.feature_title_expression = QgsExpression(display_expression)
-        # todo: clear frames
-        self.refreshFrames()
+        self.features_data_map.clear()  # clear all cached data
+
+        self.page_data_worker = PageDataWorker(
+            self.layer,
+            self.feature_ids,
+            self.features_data_map,
+            self.image_field,
+            self.field_type,
+            self.page_start,
+            self.page_size,
+            self.relation,
+        )
+        self.page_data_worker.page_ready.connect(self.onPageReady)
+        self.page_data_worker.start()
+        self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
 
     def handleFFComboboxChange(self, index):
         if self.ff_combo_box_index == 0:
@@ -214,9 +358,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.refreshFeatures()
 
     def refreshFeatures(self):
-        if self.features_worker:  # If there is a running loader
-            self.features_worker.abandon = True  # Signal it to abandon
-            # self.data_worker.abondon = True  # Signal it to abandon
+        self.abondonWorkers()
 
         self.features_worker = FeaturesWorker(self.layer, self.canvas, self.ff_combo_box_index)
         self.features_worker.features_ready.connect(self.onFeaturesReady)
@@ -224,95 +366,72 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.features_worker.finished.connect(self.features_worker.deleteLater)
 
     def onFeaturesReady(self, feature_ids):
-        if feature_ids != self.feature_ids:
-            self.next_offset, self.offset = 0, 0
-            self.feature_ids = feature_ids
-            self.refreshFrames()
+        if feature_ids == self.feature_ids:
+            return
 
-    def refreshFrames(self, reverse=False):
+        self.next_page_start, self.page_start = 0, 0
+        self.feature_ids = feature_ids
+
+        self.setWindowTitle(
+            f"{self.layer.name()} -- Features Total: {self.layer.featureCount()}, Filtered: {len(self.feature_ids)}"
+        )
+
+        self.page_data_worker = PageDataWorker(
+            self.layer,
+            self.feature_ids,
+            self.features_data_map,
+            self.image_field,
+            self.field_type,
+            self.page_start,
+            self.page_size,
+            self.relation,
+        )
+        self.page_data_worker.page_ready.connect(self.onPageReady)
+        self.page_data_worker.start()
+        self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
+
+    def onPageReady(self, page_start, next_page_start, page_f_ids):
+        print("I am here")
+        print(page_f_ids)
+        self.page_start = page_start
+        self.next_page_start = next_page_start
+
+        if self.page_ids != page_f_ids:
+            self.page_ids = page_f_ids
+            self.refreshGrid()
+
+    def refreshGrid(self):
+        # should run in main thread
         start_time = time.time()  # Start time before the operation
-        print("Refreshing frames...")
-
-        context = QgsExpressionContext()
+        print("Refreshing Grid...")
 
         for i in reversed(range(self.gridLayout.count())):
             widget = self.gridLayout.itemAt(i).widget()
             self.gridLayout.removeWidget(widget)
             widget.deleteLater()
 
-        filtered_count = len(self.feature_ids)
-        total_count = self.layer.featureCount()
-
-        self.setWindowTitle(f"{self.layer.name()} -- Features Total: {total_count}, Filtered: {filtered_count}")
-
-        if not self.image_field or not self.feature_ids:
-            self.removePageButtons()
-            print("Frames: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
-            return
-
         frames = []
-        count = 0
 
-        # although it is not expected the offset to be less than 0 but this is a safeguard if for some error offset is less than 0
-        if self.offset < 0:
-            reverse = False
-            self.offset == 0
-
-        # we will always have one element int the range
-        if not reverse or self.offset == 0:
-            feature_range = range(self.offset, len(self.feature_ids), 1)
-        else:
-            feature_range = range(self.offset - 1, -1, -1)
-
-        for i in feature_range:
-            if len(frames) >= self.limit:
-                break
-            count += 1
-
-            f_id = self.feature_ids[i]
-
+        for f_id in self.page_ids:
             try:
-                feature = self.layer.getFeature(f_id)
-                # doing this at the top so that if this fails we short circuit
-                data = None
-                # child_feature_display_name = ""
+                f_data = self.features_data_map[f_id]
 
                 if not self.relation:
-                    field_content = feature[self.image_field]
-                else:
-                    # get features from the child layer and get the first one
-                    child_features = [f for f in self.relation.getRelatedFeatures(feature)]
-                    if child_features:
-                        child_feature = child_features[0]  # take first child feature
-                        field_content = child_feature[self.image_field]
-                        # child_feature_display_name =
-                    else:
-                        continue
-
-                data = ImageFactory.extract_data(field_content, self.field_type)
-
-                if not data:
-                    continue
-
-                context.setFeature(feature)
-                feature_title = self.feature_title_expression.evaluate(context)
-
-                if not self.relation:
-                    frame = FeatureFrame(self.iface, self.canvas, self.layer, feature, feature_title)
+                    frame = FeatureFrame(self.iface, self.canvas, self.layer, f_data.feature, f_data.title)
                 else:
                     frame = ChildrenFeatureFrame(
                         self.iface,
                         self.canvas,
                         self.layer,
-                        feature,
-                        feature_title,
+                        f_data.feature,
+                        f_data.title,
                         self.relations[self.relation_index - 1].referencingLayer(),
                         self.image_field,
                         self.field_type,
-                        child_features,
+                        f_data.children,
                     )
 
-                frame.buildUI(data)
+                frame.buildUI(f_data.data)
                 frames.append(frame)
 
             except Exception as e:
@@ -323,12 +442,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                     "Image Viewer", f"{e.__class__.__name__}: Feature # {f_id}: {str(e)}", level=1, duration=3
                 )
 
-        if reverse:
-            frames.reverse()
-            self.offset -= count
-
-        self.next_offset = self.offset + count
-
+        print("len of frames", len(frames))
         row = 0
         col = 0
         for frame in frames:
@@ -339,13 +453,13 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                 col = 0
                 row += 1
 
-        if self.offset == 0 and len(frames) < 9:  # no pagination required
+        if self.page_start == 0 and len(frames) < self.page_size:  # no pagination required
             self.removePageButtons()
         else:
             self.addPageButtons()
 
         self.show()
-        print("Frames: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
+        print("Grid: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
 
     def removePageButtons(self):
         if self.previousPageButton:
@@ -366,7 +480,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.paginationButtonsLayout.addWidget(self.previousPageButton)
             self.previousPageButton.setMaximumSize(150, 50)
 
-        self.previousPageButton.setEnabled(self.offset > 0)
+        self.previousPageButton.setEnabled(self.page_start > 0)
 
         if not self.nextPageButton:
             self.nextPageButton = QPushButton("Next ", self)
@@ -376,17 +490,52 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.paginationButtonsLayout.addWidget(self.nextPageButton)
             self.nextPageButton.setMaximumSize(150, 50)
 
-        self.nextPageButton.setEnabled(self.next_offset < len(self.feature_ids))
+        self.nextPageButton.setEnabled(self.next_page_start < len(self.feature_ids))
 
     def displayPrevPage(self):
-        self.refreshFrames(reverse=True)
+        self.page_data_worker = PageDataWorker(
+            self.layer,
+            self.feature_ids,
+            self.features_data_map,
+            self.image_field,
+            self.field_type,
+            self.page_start,
+            self.page_size,
+            self.relation,
+            True,
+        )
+        self.page_data_worker.page_ready.connect(self.onPageReady)
+        self.page_data_worker.start()
+        self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
 
     def displayNextPage(self):
-        self.offset = self.next_offset
-        self.refreshFrames()
+        self.page_start = self.next_page_start
+        self.page_data_worker = PageDataWorker(
+            self.layer,
+            self.feature_ids,
+            self.features_data_map,
+            self.image_field,
+            self.field_type,
+            self.page_start,
+            self.page_size,
+            self.relation,
+        )
+        self.page_data_worker.page_ready.connect(self.onPageReady)
+        self.page_data_worker.start()
+        self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
+
+    def abondonWorkers(self, features=True, page_data=True):
+        if features and self.features_worker:
+            self.features_worker.abandon = True
+            self.features_worker = None
+
+        if page_data and self.page_data_worker:
+            self.page_data_worker.abandon = True
+            self.page_data_worker = None
 
     def closeEvent(self, event):
         """Extends the super.closeEvent"""
+        self.abondonWorkers()
 
         # When window is closed, disconnect  signals
         self.layer.displayExpressionChanged.disconnect(self.handleDisplayExpressionChange)
