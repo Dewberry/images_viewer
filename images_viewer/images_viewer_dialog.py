@@ -118,13 +118,12 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         else:
             self.relationComboBox.setCurrentIndex(relation_index)
 
+        self.refreshFeatures()
+
     def handelHardRefresh(self):
         self.abondonWorkers(True, True)
-        self.feature_ids = []
-        self.page_ids = []
-        self.features_data_map = {}
-        self.features_frames_map = {}
-        self.refreshFeatures()
+        self.clearCaches()
+        self.refreshFeatures()  # this will clear the feature_ids anyways
 
     def handelRelationChange(self, index):
         """
@@ -132,8 +131,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         Regenerate field comboBox.
         Call handleFieldChange method at the end.
         """
-        self.filtered_fields.clear()
-        self.fieldComboBox.clear()
+        self.clearCaches()
         self.relation_index = index
 
         if index == 0:
@@ -152,42 +150,36 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
         if self.image_field not in [f.name() for f in self.filtered_fields]:
             self.image_field = ""
-            self.handleFieldChange("")  # this will call referesh method
+            self.handleFieldChange("")
         else:
-            self.fieldComboBox.setField(self.image_field)  # this will call referesh method
+            self.fieldComboBox.setField(self.image_field)
 
     def handleFieldChange(self, fieldName):
+        self.abondonWorkers(True, True)
+        self.clearCaches()
+
         self.image_field = fieldName
         if not fieldName:
             self.fieldComboBox.setStyleSheet("QComboBox { background-color: #3399ff; }")
+            # we don't need to get field type etc as the page_data_worker
+            # will short circuit without needing any furhter information if not self.image_field
         else:
             self.fieldComboBox.setStyleSheet("")
             field_index = self.filtered_fields.indexFromName(fieldName)
             field = self.filtered_fields[field_index]
             self.field_type = field.type()
 
-            self.refreshFeatures()
+        # we are not calling features refresh because we don't want to lose the current page start
+        # this will be useful when a layer has images in two
+        self.startPageWorker(self.page_start)
 
     def handleDisplayExpressionChange(self):
         display_expression = self.layer.displayExpression()
         self.feature_title_expression = QgsExpression(display_expression)
-        self.features_data_map.clear()  # clear all cached data
-        self.features_frames_map.clear()
 
-        self.abondonWorkers(page_data=True)
-        self.page_data_worker = PageDataWorker(
-            self.layer,
-            self.feature_ids,
-            self.features_data_map,
-            self.image_field,
-            self.field_type,
-            self.page_start,
-            self.page_size,
-            self.relation,
-        )
-        self.page_data_worker.page_ready.connect(self.onPageReady)
-        self.page_data_worker.start()
-        self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
+        # we are not calling features refresh because we don't want to lose the current page start
+        # this will be useful when a layer has images in two
+        self.startPageWorker(self.page_start)
 
     def handleFFComboboxChange(self, index):
         if self.ff_combo_box_index == 0:
@@ -218,10 +210,15 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
         self.next_page_start, self.page_start = 0, 0
         self.feature_ids = feature_ids
+        self.startPageWorker(0)
 
         self.setWindowTitle(
             f"{self.layer.name()} -- Features Total: {self.layer.featureCount()}, Filtered: {len(self.feature_ids)}"
         )
+
+    def startPageWorker(self, page_start, reverse=False, connect=True):
+        if not self.feature_ids:
+            return
 
         self.abondonWorkers(page_data=True)
         self.page_data_worker = PageDataWorker(
@@ -230,11 +227,13 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.features_data_map,
             self.image_field,
             self.field_type,
-            self.page_start,
+            page_start,
             self.page_size,
             self.relation,
+            reverse,
         )
-        self.page_data_worker.page_ready.connect(self.onPageReady)
+        if connect:
+            self.page_data_worker.page_ready.connect(self.onPageReady)
         self.page_data_worker.start()
         self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
 
@@ -249,19 +248,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
         # get data for the next page in anticipation of user clicking next soon
         # do not connect to its signal, so that it doesn't actually display the next page
-        self.abondonWorkers(page_data=True)
-        self.page_data_worker = PageDataWorker(
-            self.layer,
-            self.feature_ids,
-            self.features_data_map,
-            self.image_field,
-            self.field_type,
-            self.next_page_start,
-            self.page_size,
-            self.relation,
-        )
-        self.page_data_worker.start()
-        self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
+        self.startPageWorker(self.next_page_start, connect=False)
 
     def refreshGrid(self):
         # should run in main thread
@@ -323,7 +310,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                 row += 1
 
         print("Grid: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
-        print("current length of freames store", len(self.features_frames_map))
+        print("current length of frames store", len(self.features_frames_map))
 
     def refreshPageButtons(self):
         self.previousPageButton.setEnabled(self.page_start > 0)
@@ -332,38 +319,12 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
     def displayPrevPage(self):
         self.previousPageButton.setEnabled(False)
         self.abondonWorkers(page_data=True)
-        self.page_data_worker = PageDataWorker(
-            self.layer,
-            self.feature_ids,
-            self.features_data_map,
-            self.image_field,
-            self.field_type,
-            self.page_start,
-            self.page_size,
-            self.relation,
-            True,
-        )
-        self.page_data_worker.page_ready.connect(self.onPageReady)
-        self.page_data_worker.start()
-        self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
+        self.startPageWorker(reverse=True)
 
     def displayNextPage(self):
         self.nextPageButton.setEnabled(False)  # prevents crashing from multiple clicks
-        self.abondonWorkers(page_data=True)
         self.page_start = self.next_page_start
-        self.page_data_worker = PageDataWorker(
-            self.layer,
-            self.feature_ids,
-            self.features_data_map,
-            self.image_field,
-            self.field_type,
-            self.page_start,
-            self.page_size,
-            self.relation,
-        )
-        self.page_data_worker.page_ready.connect(self.onPageReady)
-        self.page_data_worker.start()
-        self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
+        self.startPageWorker(self.page_start)
 
     def abondonWorkers(self, features=False, page_data=False):
         if features and self.features_worker:
@@ -373,6 +334,10 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         if page_data and self.page_data_worker:
             self.page_data_worker.abandon = True
             self.page_data_worker = None
+
+    def clearCaches(self):
+        self.features_data_map.clear()  # clear all cached data
+        self.features_frames_map.clear()
 
     def closeEvent(self, event):
         """Extends the super.closeEvent"""
