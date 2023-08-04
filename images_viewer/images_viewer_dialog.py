@@ -12,7 +12,7 @@ import os
 import time
 
 from PyQt5 import uic
-from PyQt5.QtCore import QSettings, QSize, Qt, QVariant
+from PyQt5.QtCore import QSettings, QSize, Qt, QThread, QVariant, pyqtSignal
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QPushButton
 from qgis.core import (
@@ -28,6 +28,38 @@ from images_viewer.frames import ChildrenFeatureFrame, FeatureFrame
 from images_viewer.utils import ImageFactory, create_tool_button
 
 Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_viewer_dialog.ui"))
+
+
+class FeaturesWorker(QThread):
+    features_ready = pyqtSignal(list)
+
+    def __init__(self, layer, canvas, ff_index):
+        QThread.__init__(self)
+        self.layer = layer
+        self.canvas = canvas
+        self.abandon = False
+        self.ff_index = ff_index
+
+    def run(self):
+        start_time = time.time()  # Start time before the operation
+        print("Feature worker starting work ...")
+        if self.ff_index == 0:
+            extent = self.canvas.extent()
+            request = QgsFeatureRequest().setFilterRect(extent)
+            feature_ids = [f.id() for f in self.layer.getFeatures(request)]
+        elif self.ff_index == 1:
+            selected_ids = self.layer.selectedFeatureIds()
+            feature_ids = selected_ids
+        elif self.ff_index == 2:
+            feature_ids = [f.id() for f in self.layer.getFeatures()]
+
+        print("Features [{}]: {} meiliseconds".format(len(feature_ids), (time.time() - start_time) * 1000))
+
+        if not self.abandon:  # Check if the thread should be abandoned
+            feature_ids.sort()
+            self.features_ready.emit(list(feature_ids))
+        else:
+            print("!!!abondoning")
 
 
 class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
@@ -57,6 +89,9 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                 self.restoreGeometry(self.default_settings.value("geometry"))
 
         self.canvas = self.iface.mapCanvas()
+        self.features_worker = None
+        self.feature_ids = []
+        self.data_worker = None
 
         display_expression = self.layer.displayExpression()
         self.layer.displayExpressionChanged.connect(self.handleDisplayExpressionChange)
@@ -179,24 +214,20 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.refreshFeatures()
 
     def refreshFeatures(self):
-        start_time = time.time()  # Start time before the operation
-        print("Refreshing features...")
+        if self.features_worker:  # If there is a running loader
+            self.features_worker.abandon = True  # Signal it to abandon
+            # self.data_worker.abondon = True  # Signal it to abandon
 
-        self.next_offset, self.offset = 0, 0
-        if self.ff_combo_box_index == 0:
-            extent = self.canvas.extent()
-            request = QgsFeatureRequest().setFilterRect(extent)
-            self.feature_ids = [f.id() for f in self.layer.getFeatures(request)]
-        elif self.ff_combo_box_index == 1:
-            selected_ids = self.layer.selectedFeatureIds()
-            self.feature_ids = selected_ids
-        elif self.ff_combo_box_index == 2:
-            self.feature_ids = [f.id() for f in self.layer.getFeatures()]
+        self.features_worker = FeaturesWorker(self.layer, self.canvas, self.ff_combo_box_index)
+        self.features_worker.features_ready.connect(self.onFeaturesReady)
+        self.features_worker.start()
+        self.features_worker.finished.connect(self.features_worker.deleteLater)
 
-        self.feature_ids.sort()
-        print("Features: {} meiliseconds".format((time.time() - start_time) * 1000))
-
-        self.refreshFrames()
+    def onFeaturesReady(self, feature_ids):
+        if feature_ids != self.feature_ids:
+            self.next_offset, self.offset = 0, 0
+            self.feature_ids = feature_ids
+            self.refreshFrames()
 
     def refreshFrames(self, reverse=False):
         start_time = time.time()  # Start time before the operation
@@ -216,7 +247,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
         if not self.image_field or not self.feature_ids:
             self.removePageButtons()
-            print("Images: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
+            print("Frames: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
             return
 
         frames = []
