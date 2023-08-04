@@ -12,9 +12,8 @@ import os
 import time
 
 from PyQt5 import uic
-from PyQt5.QtCore import QSettings, QSize, Qt, QVariant
+from PyQt5.QtCore import QSettings, QSize, QVariant
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QPushButton
 from qgis.core import (
     QgsApplication,
     QgsExpression,
@@ -63,6 +62,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.page_data_worker = None
         self.page_ids = []
         self.features_data_map = {}
+        self.features_frames_map = {}
 
         self.layer.displayExpressionChanged.connect(self.handleDisplayExpressionChange)
 
@@ -123,6 +123,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.feature_ids = []
         self.page_ids = []
         self.features_data_map = {}
+        self.features_frames_map = {}
         self.refreshFeatures()
 
     def handelRelationChange(self, index):
@@ -251,30 +252,37 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         for i in reversed(range(self.gridLayout.count())):
             widget = self.gridLayout.itemAt(i).widget()
             self.gridLayout.removeWidget(widget)
-            widget.deleteLater()
+            widget.hide()  # hide it for now, we will delete through cache
 
         frames = []
 
         for f_id in self.page_ids:
             try:
-                f_data = self.features_data_map[f_id]
+                if f_id in self.features_frames_map:  # cache hit
+                    frame = self.features_frames_map[f_id]
+                    frame.show()
+                else:  # cache miss
+                    f_data = self.features_data_map[f_id]
 
-                if not self.relation:
-                    frame = FeatureFrame(self.iface, self.canvas, self.layer, f_data.feature, f_data.title)
-                else:
-                    frame = ChildrenFeatureFrame(
-                        self.iface,
-                        self.canvas,
-                        self.layer,
-                        f_data.feature,
-                        f_data.title,
-                        self.relations[self.relation_index - 1].referencingLayer(),
-                        self.image_field,
-                        self.field_type,
-                        f_data.children,
-                    )
+                    if not self.relation:
+                        frame = FeatureFrame(self.iface, self.canvas, self.layer, f_data.feature, f_data.title)
+                    else:
+                        frame = ChildrenFeatureFrame(
+                            self.iface,
+                            self.canvas,
+                            self.layer,
+                            f_data.feature,
+                            f_data.title,
+                            self.relations[self.relation_index - 1].referencingLayer(),
+                            self.image_field,
+                            self.field_type,
+                            f_data.children,
+                        )
+                    frame.buildUI(f_data.data)
+                    # free up memory by deleting the data from data cache and store frame in frame cache
+                    self.features_data_map.pop(f_id, None)
+                    self.features_frames_map[f_id] = frame
 
-                frame.buildUI(f_data.data)
                 frames.append(frame)
 
             except Exception as e:
@@ -285,7 +293,6 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                     "Image Viewer", f"{e.__class__.__name__}: Feature # {f_id}: {str(e)}", level=1, duration=3
                 )
 
-        print("len of frames", len(frames))
         row = 0
         col = 0
         for frame in frames:
@@ -296,7 +303,6 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                 col = 0
                 row += 1
 
-        print("frames", self.page_start, self.page_ids, self.next_page_start)
         print("Grid: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
 
     def refreshPageButtons(self):
