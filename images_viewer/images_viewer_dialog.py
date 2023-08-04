@@ -358,7 +358,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.refreshFeatures()
 
     def refreshFeatures(self):
-        self.abondonWorkers()
+        self.abondonWorkers(True, True)
 
         self.features_worker = FeaturesWorker(self.layer, self.canvas, self.ff_combo_box_index)
         self.features_worker.features_ready.connect(self.onFeaturesReady)
@@ -493,6 +493,8 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.nextPageButton.setEnabled(self.next_page_start < len(self.feature_ids))
 
     def displayPrevPage(self):
+        self.previousPageButton.setEnabled(False)
+        self.abondonWorkers(page_data=True)
         self.page_data_worker = PageDataWorker(
             self.layer,
             self.feature_ids,
@@ -509,6 +511,8 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
 
     def displayNextPage(self):
+        self.nextPageButton.setEnabled(False)  # prevents crashing from multiple clicks
+        self.abondonWorkers(page_data=True)
         self.page_start = self.next_page_start
         self.page_data_worker = PageDataWorker(
             self.layer,
@@ -524,7 +528,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.page_data_worker.start()
         self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
 
-    def abondonWorkers(self, features=True, page_data=True):
+    def abondonWorkers(self, features=False, page_data=False):
         if features and self.features_worker:
             self.features_worker.abandon = True
             self.features_worker = None
@@ -535,7 +539,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
     def closeEvent(self, event):
         """Extends the super.closeEvent"""
-        self.abondonWorkers()
+        self.abondonWorkers(True, True)
 
         # When window is closed, disconnect  signals
         self.layer.displayExpressionChanged.disconnect(self.handleDisplayExpressionChange)
