@@ -105,9 +105,8 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.page_start = 0  # inclusive
         self.page_size = 9  # change this to conrol how many frames per page
         self.next_page_start = 0
-
-        self.previousPageButton = None
-        self.nextPageButton = None
+        self.previousPageButton.clicked.connect(self.displayPrevPage)
+        self.nextPageButton.clicked.connect(self.displayNextPage)
 
         # Instantiate GUI
         self.relation = None
@@ -301,23 +300,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         print("Grid: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
 
     def refreshPageButtons(self):
-        if not self.previousPageButton:
-            self.previousPageButton = QPushButton(" Previous", self)
-            self.previousPageButton.setIcon(QgsApplication.getThemeIcon("/mActionArrowLeft.svg"))
-            self.previousPageButton.clicked.connect(self.displayPrevPage)
-            self.paginationButtonsLayout.addWidget(self.previousPageButton)
-            self.previousPageButton.setMaximumSize(150, 50)
-
         self.previousPageButton.setEnabled(self.page_start > 0)
-
-        if not self.nextPageButton:
-            self.nextPageButton = QPushButton("Next ", self)
-            self.nextPageButton.setIcon(QgsApplication.getThemeIcon("/mActionArrowRight.svg"))
-            self.nextPageButton.setLayoutDirection(Qt.RightToLeft)
-            self.nextPageButton.clicked.connect(self.displayNextPage)
-            self.paginationButtonsLayout.addWidget(self.nextPageButton)
-            self.nextPageButton.setMaximumSize(150, 50)
-
         self.nextPageButton.setEnabled(self.next_page_start < len(self.feature_ids))
 
     def displayPrevPage(self):
