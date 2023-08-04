@@ -229,8 +229,6 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
 
     def onPageReady(self, page_start, next_page_start, page_f_ids):
-        print("I am here")
-        print(page_f_ids)
         self.page_start = page_start
         self.next_page_start = next_page_start
 
@@ -291,24 +289,10 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                 col = 0
                 row += 1
 
-        if self.page_start == 0 and len(frames) < self.page_size:  # no pagination required
-            self.removePageButtons()
-        else:
-            self.addPageButtons()
+        print("frames", self.page_start, self.page_ids, self.next_page_start)
+        self.addPageButtons()
 
-        self.show()
         print("Grid: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
-
-    def removePageButtons(self):
-        if self.previousPageButton:
-            self.paginationButtonsLayout.removeWidget(self.previousPageButton)
-            self.previousPageButton.deleteLater()
-            self.previousPageButton = None
-
-        if self.nextPageButton:
-            self.paginationButtonsLayout.removeWidget(self.nextPageButton)
-            self.nextPageButton.deleteLater()
-            self.nextPageButton = None
 
     def addPageButtons(self):
         if not self.previousPageButton:
