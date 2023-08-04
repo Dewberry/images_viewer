@@ -67,7 +67,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.layer.displayExpressionChanged.connect(self.handleDisplayExpressionChange)
 
         # Top tool bar
-        refreshButton = create_tool_button("mActionRefresh.svg", "Refresh", self.refreshFeatures)
+        refreshButton = create_tool_button("mActionRefresh.svg", "Refresh", self.handelHardRefresh)
         self.topToolBar.setIconSize(QSize(20, 20))
         self.topToolBar.addWidget(refreshButton)
 
@@ -118,6 +118,13 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.handelRelationChange(0)
         else:
             self.relationComboBox.setCurrentIndex(relation_index)
+
+    def handelHardRefresh(self):
+        self.abondonWorkers(True, True)
+        self.feature_ids = []
+        self.page_ids = []
+        self.features_data_map = {}
+        self.refreshFeatures()
 
     def handelRelationChange(self, index):
         """
@@ -235,6 +242,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         if self.page_ids != page_f_ids:
             self.page_ids = page_f_ids
             self.refreshGrid()
+            self.refreshPageButtons()
 
     def refreshGrid(self):
         # should run in main thread
@@ -290,11 +298,9 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                 row += 1
 
         print("frames", self.page_start, self.page_ids, self.next_page_start)
-        self.addPageButtons()
-
         print("Grid: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
 
-    def addPageButtons(self):
+    def refreshPageButtons(self):
         if not self.previousPageButton:
             self.previousPageButton = QPushButton(" Previous", self)
             self.previousPageButton.setIcon(QgsApplication.getThemeIcon("/mActionArrowLeft.svg"))
