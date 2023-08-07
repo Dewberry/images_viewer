@@ -28,7 +28,7 @@ class PageDataWorker(QThread):
         self,
         layer,
         feature_ids,
-        features_data_map,
+        features_data_cache,
         image_field,
         field_type,
         page_start,
@@ -39,7 +39,7 @@ class PageDataWorker(QThread):
         QThread.__init__(self)
         self.layer = layer
         self.feature_ids = feature_ids
-        self.features_data_map = features_data_map
+        self.features_data_cache = features_data_cache
         self.image_field = image_field
         self.field_type = field_type
         self.page_start = page_start
@@ -88,8 +88,8 @@ class PageDataWorker(QThread):
             count += 1
             f_id = self.feature_ids[i]
 
-            if f_id in self.features_data_map:  # do not extract data again
-                if self.features_data_map[f_id]:  # if value is None it mean we don't need to have it on page
+            if self.features_data_cache.keyExist(f_id):  # cache hit: do not extract data again
+                if self.features_data_cache.get(f_id):  # if value is None it mean we don't need to have it on page
                     page_f_ids.append(f_id)
                 continue
             try:
@@ -118,7 +118,7 @@ class PageDataWorker(QThread):
                     f_data = FeatureData(feature, feature_title_expression.evaluate(context), data, child_features)
                     page_f_ids.append(f_id)
 
-                self.features_data_map[f_id] = f_data
+                self.features_data_cache.put(f_id, f_data)
 
             except Exception as e:
                 # import traceback
@@ -135,7 +135,7 @@ class PageDataWorker(QThread):
         print("Page Data [{}]: {} meiliseconds".format(count, (time.time() - start_time) * 1000))
 
         if not self.abandon:  # Check if the thread should be abandoned
-            print("current lenght of data_store", len(self.features_data_map))
+            print("current lenght of data_store", self.features_data_cache.length())
             self.page_ready.emit(self.page_start, next_page_start, page_f_ids, error_f_ids)
         else:
             print("!!!abondoning page worker")

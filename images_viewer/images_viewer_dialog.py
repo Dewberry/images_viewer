@@ -23,7 +23,15 @@ from qgis.core import (
 )
 
 from images_viewer.frames import ChildrenFeatureFrame, FeatureFrame
-from images_viewer.utils import FeaturesWorker, PageDataWorker, create_tool_button
+from images_viewer.utils import (
+    DATA_CACHE_CAPACITY,
+    FRAMES_CACHE_CAPACITY,
+    FeaturesWorker,
+    LRUCache,
+    PageDataWorker,
+    WidgetLRUCache,
+    create_tool_button,
+)
 
 Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_viewer_dialog.ui"))
 
@@ -61,8 +69,8 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.feature_ids = []
         self.page_data_worker = None
         self.page_ids = []
-        self.features_data_map = {}
-        self.features_frames_map = {}
+        self.features_data_cache = LRUCache(DATA_CACHE_CAPACITY)
+        self.features_frames_cache = WidgetLRUCache(FRAMES_CACHE_CAPACITY)
 
         self.layer.displayExpressionChanged.connect(self.handleDisplayExpressionChange)
 
@@ -225,7 +233,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.page_data_worker = PageDataWorker(
             self.layer,
             self.feature_ids,
-            self.features_data_map,
+            self.features_data_cache,
             self.image_field,
             self.field_type,
             page_start,
@@ -270,11 +278,11 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
         for f_id in self.page_ids:
             try:
-                if f_id in self.features_frames_map:  # cache hit
-                    frame = self.features_frames_map[f_id]
+                if self.features_frames_cache.keyExist(f_id):  # cache hit
+                    frame = self.features_frames_cache.get(f_id)
                     frame.show()
                 else:  # cache miss
-                    f_data = self.features_data_map[f_id]
+                    f_data = self.features_data_cache.get(f_id)
 
                     if not self.relation:
                         frame = FeatureFrame(self.iface, self.canvas, self.layer, f_data.feature, f_data.title)
@@ -291,15 +299,14 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                             f_data.children,
                         )
                     frame.buildUI(f_data.data)
-                    # free up memory by deleting the data from data cache and store frame in frame cache
-                    self.features_data_map.pop(f_id, None)
-                    self.features_frames_map[f_id] = frame
+                    self.features_frames_cache.put(f_id, frame)
 
                 frames.append(frame)
 
             except Exception as e:
                 # import traceback
                 # traceback.print_tb(e.__traceback__)
+                # print(e)
                 error_f_ids.append(f_id)
 
         if error_f_ids:
@@ -320,7 +327,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                 row += 1
 
         print("Grid: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
-        print("current length of frames store", len(self.features_frames_map))
+        print("current length of frames store", self.features_frames_cache.length())
 
     def refreshPageButtons(self):
         self.previousPageButton.setEnabled(self.page_start > 0)
@@ -346,8 +353,8 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.page_data_worker = None
 
     def clearCaches(self):
-        self.features_data_map.clear()  # clear all cached data
-        self.features_frames_map.clear()
+        self.features_data_cache.clear()  # clear all cached data
+        self.features_frames_cache.clear()
 
     def closeEvent(self, event):
         """Extends the super.closeEvent"""
