@@ -4,6 +4,10 @@ from PIL import Image as PILImage
 from PIL.ExifTags import TAGS
 from PyQt5.QtCore import QVariant
 
+from urllib.parse import urlparse
+import requests
+import os
+
 from images_viewer.widgets import Image360Widget, ImageWidget
 
 
@@ -17,7 +21,14 @@ class ImageFactory:
         if field_type == QVariant.ByteArray:
             data = PILImage.open(io.BytesIO(field_content))
         elif field_type == QVariant.String:
-            data = PILImage.open(field_content)
+            if os.path.isfile(field_content):
+                data = PILImage.open(field_content)
+            else:
+                if urlparse(field_content).scheme in ['http', 'https']:
+                    response = requests.get(field_content)
+                    data = PILImage.open(io.BytesIO(response.content))
+                else:
+                    data = None
         else:
             raise ValueError("Unacceptable field type")
 
