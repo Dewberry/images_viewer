@@ -52,6 +52,10 @@ class PageDataWorker(QThread):
         start_time = time.time()  # Start time before the operation
         print("Page data worker starting work ...")
 
+        if not self.image_field:
+            self.page_ready.emit(self.page_start, self.page_start, [])
+            return
+
         display_expression = self.layer.displayExpression()
         feature_title_expression = QgsExpression(display_expression)
         context = QgsExpressionContext()
@@ -116,9 +120,9 @@ class PageDataWorker(QThread):
                 self.features_data_map[f_id] = f_data
 
             except Exception as e:
-                import traceback
+                # import traceback
 
-                traceback.print_tb(e.__traceback__)
+                # traceback.print_tb(e.__traceback__)
                 print(
                     "Image Viewer Page Worker", f"{e.__class__.__name__}: Feature # {f_id}: {str(e)}"
                 )  # to do convert it to log

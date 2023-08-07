@@ -161,8 +161,9 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.image_field = fieldName
         if not fieldName:
             self.fieldComboBox.setStyleSheet("QComboBox { background-color: #3399ff; }")
-            # we don't need to get field type etc as the page_data_worker
-            # will short circuit without needing any furhter information if not self.image_field
+            self.field_type = QVariant.String
+            # the page_data_worker will short circuit without doing anything if not self.image_field
+            # this will allow frames to refresh to be empty
         else:
             self.fieldComboBox.setStyleSheet("")
             field_index = self.filtered_fields.indexFromName(fieldName)
@@ -292,9 +293,9 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                 frames.append(frame)
 
             except Exception as e:
-                import traceback
+                # import traceback
 
-                traceback.print_tb(e.__traceback__)
+                # traceback.print_tb(e.__traceback__)
                 self.iface.messageBar().pushMessage(
                     "Image Viewer", f"{e.__class__.__name__}: Feature # {f_id}: {str(e)}", level=1, duration=3
                 )
@@ -319,7 +320,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
     def displayPrevPage(self):
         self.previousPageButton.setEnabled(False)
         self.abondonWorkers(page_data=True)
-        self.startPageWorker(reverse=True)
+        self.startPageWorker(self.page_start, reverse=True)
 
     def displayNextPage(self):
         self.nextPageButton.setEnabled(False)  # prevents crashing from multiple clicks
