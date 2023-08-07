@@ -26,7 +26,7 @@ class ImageFactory:
                 response = requests.get(field_content)
                 data = PILImage.open(io.BytesIO(response.content))
             else:
-                data = None
+                raise ValueError("Invalid photo source. Must be file or url")
         else:
             raise ValueError("Unacceptable field type")
 
