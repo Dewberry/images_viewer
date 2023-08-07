@@ -22,7 +22,7 @@ class FeatureData:
 class PageDataWorker(QThread):
     """Thread to get data for the page based on page_start index"""
 
-    page_ready = pyqtSignal(int, int, list)
+    page_ready = pyqtSignal(int, int, list, list)  # page start, next page start, page_f_ids, error_f_ids
 
     def __init__(
         self,
@@ -53,7 +53,7 @@ class PageDataWorker(QThread):
         print("Page data worker starting work ...")
 
         if not self.image_field:
-            self.page_ready.emit(self.page_start, self.page_start, [])
+            self.page_ready.emit(self.page_start, self.page_start, [], [])
             return
 
         display_expression = self.layer.displayExpression()
@@ -74,6 +74,7 @@ class PageDataWorker(QThread):
             feature_range = range(self.page_start - 1, -1, -1)
 
         page_f_ids = []
+        error_f_ids = []
         count = 0
 
         for i in feature_range:
@@ -123,9 +124,7 @@ class PageDataWorker(QThread):
                 # import traceback
 
                 # traceback.print_tb(e.__traceback__)
-                print(
-                    "Image Viewer Page Worker", f"{e.__class__.__name__}: Feature # {f_id}: {str(e)}"
-                )  # to do convert it to log
+                error_f_ids.append(f_id)
 
         if self.reverse:
             page_f_ids.reverse()
@@ -137,6 +136,6 @@ class PageDataWorker(QThread):
 
         if not self.abandon:  # Check if the thread should be abandoned
             print("current lenght of data_store", len(self.features_data_map))
-            self.page_ready.emit(self.page_start, next_page_start, page_f_ids)
+            self.page_ready.emit(self.page_start, next_page_start, page_f_ids, error_f_ids)
         else:
             print("!!!abondoning page worker")

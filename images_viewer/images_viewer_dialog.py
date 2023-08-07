@@ -238,7 +238,11 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.page_data_worker.start()
         self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
 
-    def onPageReady(self, page_start, next_page_start, page_f_ids):
+    def onPageReady(self, page_start, next_page_start, page_f_ids, error_f_ids):
+        if error_f_ids:
+            self.iface.messageBar().pushMessage(
+                "Images Viewer: Extracting Data:", f"Error on {len(error_f_ids)} features. Ids: {error_f_ids}", level=1
+            )
         self.page_start = page_start
         self.next_page_start = next_page_start
 
@@ -262,6 +266,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             widget.hide()  # hide it for now, we will delete through cache
 
         frames = []
+        error_f_ids = []
 
         for f_id in self.page_ids:
             try:
@@ -294,11 +299,15 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
             except Exception as e:
                 # import traceback
-
                 # traceback.print_tb(e.__traceback__)
-                self.iface.messageBar().pushMessage(
-                    "Image Viewer", f"{e.__class__.__name__}: Feature # {f_id}: {str(e)}", level=1, duration=3
-                )
+                error_f_ids.append(f_id)
+
+        if error_f_ids:
+            self.iface.messageBar().pushMessage(
+                "Images Viewer: Creating Frames:",
+                f"Error on {len(error_f_ids)} features. Ids: {error_f_ids}",
+                level=1,
+            )
 
         row = 0
         col = 0
