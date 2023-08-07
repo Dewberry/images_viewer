@@ -179,7 +179,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.field_type = field.type()
 
         # we are not calling features refresh because we don't want to lose the current page start
-        # this will be useful when a layer has images in two
+        # this will be useful when a layer has images in two fields
         self.startPageWorker(self.page_start)
 
     def handleDisplayExpressionChange(self):
@@ -254,10 +254,12 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.page_start = page_start
         self.next_page_start = next_page_start
 
-        if self.page_ids != page_f_ids:
-            self.page_ids = page_f_ids
-            self.refreshGrid()
-            self.refreshPageButtons()
+        # we can do a check here that if page_ids is same as previous and fields are also same
+        # then do not refresh, but that is not worth the effort since refeshing grid would take few meiliseconds
+        # data would already be in cache
+        self.page_ids = page_f_ids
+        self.refreshGrid()
+        self.refreshPageButtons()
 
         # get data for the next page in anticipation of user clicking next soon
         # do not connect to its signal, so that it doesn't actually display the next page
