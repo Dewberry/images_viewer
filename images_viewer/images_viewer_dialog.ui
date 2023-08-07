@@ -87,6 +87,53 @@
                     </item>
                     <item>
                         <layout class="QHBoxLayout" name="paginationButtonsLayout">
+                            <item>
+                                <widget class="QPushButton" name="previousPageButton">
+                                    <property name="enabled">
+                                        <bool>false</bool>
+                                    </property>
+                                    <property name="text">
+                                        <string> Previous</string>
+                                    </property>
+                                    <property name="maximumSize">
+                                        <size>
+                                            <width>150</width>
+                                            <height>50</height>
+                                        </size>
+                                    </property>
+                                    <property name="icon">
+                                        <iconset resource="../../images/images.qrc">
+                                            <normaloff>:/images/themes/default/mActionArrowLeft.svg</normaloff>
+                                            :/images/themes/default/mActionArrowKLeft.svg
+                                        </iconset>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item>
+                                <widget class="QPushButton" name="nextPageButton">
+                                    <property name="enabled">
+                                        <bool>false</bool>
+                                    </property>
+                                    <property name="text">
+                                        <string>Next </string>
+                                    </property>
+                                    <property name="maximumSize">
+                                        <size>
+                                            <width>150</width>
+                                            <height>50</height>
+                                        </size>
+                                    </property>
+                                    <property name="layoutDirection">
+                                        <enum>Qt::RightToLeft</enum>
+                                    </property>
+                                    <property name="icon">
+                                        <iconset resource="../../images/images.qrc">
+                                            <normaloff>:/images/themes/default/mActionArrowRight.svg</normaloff>
+                                            :/images/themes/default/mActionArrowRight.svg
+                                        </iconset>
+                                    </property>
+                                </widget>
+                            </item>
                         </layout>
                     </item>
                     <item>

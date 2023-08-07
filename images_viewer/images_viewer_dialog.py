@@ -12,20 +12,18 @@ import os
 import time
 
 from PyQt5 import uic
-from PyQt5.QtCore import QSettings, QSize, Qt, QVariant
+from PyQt5.QtCore import QSettings, QSize, QVariant
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QPushButton
 from qgis.core import (
     QgsApplication,
     QgsExpression,
-    QgsExpressionContext,
-    QgsFeatureRequest,
     QgsFields,
     QgsProject,
+    QgsVectorLayer,
 )
 
 from images_viewer.frames import ChildrenFeatureFrame, FeatureFrame
-from images_viewer.utils import ImageFactory, create_tool_button
+from images_viewer.utils import FeaturesWorker, PageDataWorker, create_tool_button
 
 Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_viewer_dialog.ui"))
 
@@ -34,13 +32,15 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
     """Main window for Images Viewer"""
 
     def __init__(self, iface, parent=None):
-        super(ImagesViewerDialog, self).__init__(parent)
-        self.setupUi(self)
-
         self.iface = iface
         self.layer = self.iface.activeLayer()
         if not self.layer:
             raise ValueError("Layer is not defined")
+        if not type(self.layer) == QgsVectorLayer:
+            raise ValueError("Layer is not a Vector Layer")
+
+        super(ImagesViewerDialog, self).__init__(parent)
+        self.setupUi(self)
         self.setWindowTitle(self.layer.name())
 
         # Restore previous settings
@@ -57,13 +57,17 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                 self.restoreGeometry(self.default_settings.value("geometry"))
 
         self.canvas = self.iface.mapCanvas()
+        self.features_worker = None
+        self.feature_ids = []
+        self.page_data_worker = None
+        self.page_ids = []
+        self.features_data_map = {}
+        self.features_frames_map = {}
 
-        display_expression = self.layer.displayExpression()
         self.layer.displayExpressionChanged.connect(self.handleDisplayExpressionChange)
-        self.feature_title_expression = QgsExpression(display_expression)
 
         # Top tool bar
-        refreshButton = create_tool_button("mActionRefresh.svg", "Refresh", self.refreshFeatures)
+        refreshButton = create_tool_button("mActionRefresh.svg", "Refresh", self.handelHardRefresh)
         self.topToolBar.setIconSize(QSize(20, 20))
         self.topToolBar.addWidget(refreshButton)
 
@@ -98,12 +102,11 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.fieldComboBox.fieldChanged.connect(self.handleFieldChange)
 
         # Pagination
-        self.offset = 0  # inclusive
-        self.limit = 9  # change this to conrol how many frames per page
-        self.next_offset = 0
-
-        self.previousPageButton = None
-        self.nextPageButton = None
+        self.page_start = 0  # inclusive
+        self.page_size = 9  # change this to conrol how many frames per page
+        self.next_page_start = 0
+        self.previousPageButton.clicked.connect(self.displayPrevPage)
+        self.nextPageButton.clicked.connect(self.displayNextPage)
 
         # Instantiate GUI
         self.relation = None
@@ -115,14 +118,20 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         else:
             self.relationComboBox.setCurrentIndex(relation_index)
 
+        self.refreshFeatures()
+
+    def handelHardRefresh(self):
+        self.abondonWorkers(True, True)
+        self.clearCaches()
+        self.refreshFeatures()  # this will clear the feature_ids anyways
+
     def handelRelationChange(self, index):
         """
         Set self.realtion to relation at current index.
         Regenerate field comboBox.
         Call handleFieldChange method at the end.
         """
-        self.filtered_fields.clear()
-        self.fieldComboBox.clear()
+        self.clearCaches()
         self.relation_index = index
 
         if index == 0:
@@ -141,27 +150,37 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
         if self.image_field not in [f.name() for f in self.filtered_fields]:
             self.image_field = ""
-            self.handleFieldChange("")  # this will call referesh method
+            self.handleFieldChange("")
         else:
-            self.fieldComboBox.setField(self.image_field)  # this will call referesh method
+            self.fieldComboBox.setField(self.image_field)
 
     def handleFieldChange(self, fieldName):
+        self.abondonWorkers(True, True)
+        self.clearCaches()
+
         self.image_field = fieldName
         if not fieldName:
             self.fieldComboBox.setStyleSheet("QComboBox { background-color: #3399ff; }")
+            self.field_type = QVariant.String
+            # the page_data_worker will short circuit without doing anything if not self.image_field
+            # this will allow frames to refresh to be empty
         else:
             self.fieldComboBox.setStyleSheet("")
             field_index = self.filtered_fields.indexFromName(fieldName)
             field = self.filtered_fields[field_index]
             self.field_type = field.type()
 
-        self.refreshFeatures()
+        # we are not calling features refresh because we don't want to lose the current page start
+        # this will be useful when a layer has images in two
+        self.startPageWorker(self.page_start)
 
     def handleDisplayExpressionChange(self):
         display_expression = self.layer.displayExpression()
         self.feature_title_expression = QgsExpression(display_expression)
-        # todo: clear frames
-        self.refreshFrames()
+
+        # we are not calling features refresh because we don't want to lose the current page start
+        # this will be useful when a layer has images in two
+        self.startPageWorker(self.page_start)
 
     def handleFFComboboxChange(self, index):
         if self.ff_combo_box_index == 0:
@@ -179,124 +198,116 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.refreshFeatures()
 
     def refreshFeatures(self):
+        self.abondonWorkers(True, True)
+
+        self.features_worker = FeaturesWorker(self.layer, self.canvas, self.ff_combo_box_index)
+        self.features_worker.features_ready.connect(self.onFeaturesReady)
+        self.features_worker.start()
+        self.features_worker.finished.connect(self.features_worker.deleteLater)
+
+    def onFeaturesReady(self, feature_ids):
+        if feature_ids == self.feature_ids:
+            return
+
+        self.next_page_start, self.page_start = 0, 0
+        self.feature_ids = feature_ids
+        self.startPageWorker(0)
+
+        self.setWindowTitle(
+            f"{self.layer.name()} -- Features Total: {self.layer.featureCount()}, Filtered: {len(self.feature_ids)}"
+        )
+
+    def startPageWorker(self, page_start, reverse=False, connect=True):
+        if not self.feature_ids:
+            return
+
+        self.abondonWorkers(page_data=True)
+        self.page_data_worker = PageDataWorker(
+            self.layer,
+            self.feature_ids,
+            self.features_data_map,
+            self.image_field,
+            self.field_type,
+            page_start,
+            self.page_size,
+            self.relation,
+            reverse,
+        )
+        if connect:
+            self.page_data_worker.page_ready.connect(self.onPageReady)
+        self.page_data_worker.start()
+        self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
+
+    def onPageReady(self, page_start, next_page_start, page_f_ids, error_f_ids):
+        if error_f_ids:
+            self.iface.messageBar().pushMessage(
+                "Images Viewer: Extracting Data:", f"Error on {len(error_f_ids)} features. Ids: {error_f_ids}", level=1
+            )
+        self.page_start = page_start
+        self.next_page_start = next_page_start
+
+        if self.page_ids != page_f_ids:
+            self.page_ids = page_f_ids
+            self.refreshGrid()
+            self.refreshPageButtons()
+
+        # get data for the next page in anticipation of user clicking next soon
+        # do not connect to its signal, so that it doesn't actually display the next page
+        self.startPageWorker(self.next_page_start, connect=False)
+
+    def refreshGrid(self):
+        # should run in main thread
         start_time = time.time()  # Start time before the operation
-        print("Refreshing features...")
-
-        self.next_offset, self.offset = 0, 0
-        if self.ff_combo_box_index == 0:
-            extent = self.canvas.extent()
-            request = QgsFeatureRequest().setFilterRect(extent)
-            self.feature_ids = [f.id() for f in self.layer.getFeatures(request)]
-        elif self.ff_combo_box_index == 1:
-            selected_ids = self.layer.selectedFeatureIds()
-            self.feature_ids = selected_ids
-        elif self.ff_combo_box_index == 2:
-            self.feature_ids = [f.id() for f in self.layer.getFeatures()]
-
-        self.feature_ids.sort()
-        print("Features: {} meiliseconds".format((time.time() - start_time) * 1000))
-
-        self.refreshFrames()
-
-    def refreshFrames(self, reverse=False):
-        start_time = time.time()  # Start time before the operation
-        print("Refreshing frames...")
-
-        context = QgsExpressionContext()
+        print("Refreshing Grid...")
 
         for i in reversed(range(self.gridLayout.count())):
             widget = self.gridLayout.itemAt(i).widget()
             self.gridLayout.removeWidget(widget)
-            widget.deleteLater()
-
-        filtered_count = len(self.feature_ids)
-        total_count = self.layer.featureCount()
-
-        self.setWindowTitle(f"{self.layer.name()} -- Features Total: {total_count}, Filtered: {filtered_count}")
-
-        if not self.image_field or not self.feature_ids:
-            self.removePageButtons()
-            print("Images: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
-            return
+            widget.hide()  # hide it for now, we will delete through cache
 
         frames = []
-        count = 0
+        error_f_ids = []
 
-        # although it is not expected the offset to be less than 0 but this is a safeguard if for some error offset is less than 0
-        if self.offset < 0:
-            reverse = False
-            self.offset == 0
-
-        # we will always have one element int the range
-        if not reverse or self.offset == 0:
-            feature_range = range(self.offset, len(self.feature_ids), 1)
-        else:
-            feature_range = range(self.offset - 1, -1, -1)
-
-        for i in feature_range:
-            if len(frames) >= self.limit:
-                break
-            count += 1
-
-            f_id = self.feature_ids[i]
-
+        for f_id in self.page_ids:
             try:
-                feature = self.layer.getFeature(f_id)
-                # doing this at the top so that if this fails we short circuit
-                data = None
-                # child_feature_display_name = ""
+                if f_id in self.features_frames_map:  # cache hit
+                    frame = self.features_frames_map[f_id]
+                    frame.show()
+                else:  # cache miss
+                    f_data = self.features_data_map[f_id]
 
-                if not self.relation:
-                    field_content = feature[self.image_field]
-                else:
-                    # get features from the child layer and get the first one
-                    child_features = [f for f in self.relation.getRelatedFeatures(feature)]
-                    if child_features:
-                        child_feature = child_features[0]  # take first child feature
-                        field_content = child_feature[self.image_field]
-                        # child_feature_display_name =
+                    if not self.relation:
+                        frame = FeatureFrame(self.iface, self.canvas, self.layer, f_data.feature, f_data.title)
                     else:
-                        continue
+                        frame = ChildrenFeatureFrame(
+                            self.iface,
+                            self.canvas,
+                            self.layer,
+                            f_data.feature,
+                            f_data.title,
+                            self.relations[self.relation_index - 1].referencingLayer(),
+                            self.image_field,
+                            self.field_type,
+                            f_data.children,
+                        )
+                    frame.buildUI(f_data.data)
+                    # free up memory by deleting the data from data cache and store frame in frame cache
+                    self.features_data_map.pop(f_id, None)
+                    self.features_frames_map[f_id] = frame
 
-                data = ImageFactory.extract_data(field_content, self.field_type)
-
-                if not data:
-                    continue
-
-                context.setFeature(feature)
-                feature_title = self.feature_title_expression.evaluate(context)
-
-                if not self.relation:
-                    frame = FeatureFrame(self.iface, self.canvas, self.layer, feature, feature_title)
-                else:
-                    frame = ChildrenFeatureFrame(
-                        self.iface,
-                        self.canvas,
-                        self.layer,
-                        feature,
-                        feature_title,
-                        self.relations[self.relation_index - 1].referencingLayer(),
-                        self.image_field,
-                        self.field_type,
-                        child_features,
-                    )
-
-                frame.buildUI(data)
                 frames.append(frame)
 
             except Exception as e:
-                import traceback
+                # import traceback
+                # traceback.print_tb(e.__traceback__)
+                error_f_ids.append(f_id)
 
-                traceback.print_tb(e.__traceback__)
-                self.iface.messageBar().pushMessage(
-                    "Image Viewer", f"{e.__class__.__name__}: Feature # {f_id}: {str(e)}", level=1, duration=3
-                )
-
-        if reverse:
-            frames.reverse()
-            self.offset -= count
-
-        self.next_offset = self.offset + count
+        if error_f_ids:
+            self.iface.messageBar().pushMessage(
+                "Images Viewer: Creating Frames:",
+                f"Error on {len(error_f_ids)} features. Ids: {error_f_ids}",
+                level=1,
+            )
 
         row = 0
         col = 0
@@ -308,54 +319,39 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                 col = 0
                 row += 1
 
-        if self.offset == 0 and len(frames) < 9:  # no pagination required
-            self.removePageButtons()
-        else:
-            self.addPageButtons()
+        print("Grid: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
+        print("current length of frames store", len(self.features_frames_map))
 
-        self.show()
-        print("Frames: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
-
-    def removePageButtons(self):
-        if self.previousPageButton:
-            self.paginationButtonsLayout.removeWidget(self.previousPageButton)
-            self.previousPageButton.deleteLater()
-            self.previousPageButton = None
-
-        if self.nextPageButton:
-            self.paginationButtonsLayout.removeWidget(self.nextPageButton)
-            self.nextPageButton.deleteLater()
-            self.nextPageButton = None
-
-    def addPageButtons(self):
-        if not self.previousPageButton:
-            self.previousPageButton = QPushButton(" Previous", self)
-            self.previousPageButton.setIcon(QgsApplication.getThemeIcon("/mActionArrowLeft.svg"))
-            self.previousPageButton.clicked.connect(self.displayPrevPage)
-            self.paginationButtonsLayout.addWidget(self.previousPageButton)
-            self.previousPageButton.setMaximumSize(150, 50)
-
-        self.previousPageButton.setEnabled(self.offset > 0)
-
-        if not self.nextPageButton:
-            self.nextPageButton = QPushButton("Next ", self)
-            self.nextPageButton.setIcon(QgsApplication.getThemeIcon("/mActionArrowRight.svg"))
-            self.nextPageButton.setLayoutDirection(Qt.RightToLeft)
-            self.nextPageButton.clicked.connect(self.displayNextPage)
-            self.paginationButtonsLayout.addWidget(self.nextPageButton)
-            self.nextPageButton.setMaximumSize(150, 50)
-
-        self.nextPageButton.setEnabled(self.next_offset < len(self.feature_ids))
+    def refreshPageButtons(self):
+        self.previousPageButton.setEnabled(self.page_start > 0)
+        self.nextPageButton.setEnabled(self.next_page_start < len(self.feature_ids))
 
     def displayPrevPage(self):
-        self.refreshFrames(reverse=True)
+        self.previousPageButton.setEnabled(False)
+        self.abondonWorkers(page_data=True)
+        self.startPageWorker(self.page_start, reverse=True)
 
     def displayNextPage(self):
-        self.offset = self.next_offset
-        self.refreshFrames()
+        self.nextPageButton.setEnabled(False)  # prevents crashing from multiple clicks
+        self.page_start = self.next_page_start
+        self.startPageWorker(self.page_start)
+
+    def abondonWorkers(self, features=False, page_data=False):
+        if features and self.features_worker:
+            self.features_worker.abandon = True
+            self.features_worker = None
+
+        if page_data and self.page_data_worker:
+            self.page_data_worker.abandon = True
+            self.page_data_worker = None
+
+    def clearCaches(self):
+        self.features_data_map.clear()  # clear all cached data
+        self.features_frames_map.clear()
 
     def closeEvent(self, event):
         """Extends the super.closeEvent"""
+        self.abondonWorkers(True, True)
 
         # When window is closed, disconnect  signals
         self.layer.displayExpressionChanged.disconnect(self.handleDisplayExpressionChange)
