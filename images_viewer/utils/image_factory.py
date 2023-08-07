@@ -1,5 +1,8 @@
 import io
+import os
+from urllib.parse import urlparse
 
+import requests
 from PIL import Image as PILImage
 from PIL.ExifTags import TAGS
 from PyQt5.QtCore import QVariant
@@ -17,7 +20,13 @@ class ImageFactory:
         if field_type == QVariant.ByteArray:
             data = PILImage.open(io.BytesIO(field_content))
         elif field_type == QVariant.String:
-            data = PILImage.open(field_content)
+            if os.path.isfile(field_content):
+                data = PILImage.open(field_content)
+            elif urlparse(field_content).scheme in ["http", "https"]:
+                response = requests.get(field_content)
+                data = PILImage.open(io.BytesIO(response.content))
+            else:
+                raise ValueError("Invalid photo source. Must be file or url")
         else:
             raise ValueError("Unacceptable field type")
 
