@@ -131,7 +131,8 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
     def handelHardRefresh(self):
         self.abondonWorkers(True, True)
         self.clearCaches()
-        self.refreshFeatures()  # this will clear the feature_ids anyways
+        self.feature_ids = []
+        self.refreshFeatures()
 
     def handelRelationChange(self, index):
         """
