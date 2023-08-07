@@ -19,15 +19,23 @@ class FeaturesWorker(QThread):
     def run(self):
         start_time = time.time()  # Start time before the operation
         print("Feature worker starting work ...")
+        feature_ids = []
         if self.ff_index == 0:
             extent = self.canvas.extent()
             request = QgsFeatureRequest().setFilterRect(extent)
-            feature_ids = [f.id() for f in self.layer.getFeatures(request)]
+            for feat in self.layer.getFeatures(request):
+                if self.abandon:
+                    print("!!!abondoning features worker")
+                    return
+                feature_ids.append(feat.id())
         elif self.ff_index == 1:
-            selected_ids = self.layer.selectedFeatureIds()
-            feature_ids = selected_ids
+            feature_ids = self.layer.selectedFeatureIds()
         elif self.ff_index == 2:
-            feature_ids = [f.id() for f in self.layer.getFeatures()]
+            for feat in self.layer.getFeatures():
+                if self.abandon:
+                    print("!!!abondoning features worker")
+                    return
+                feature_ids.append(feat.id())
 
         print("Features [{}]: {} meiliseconds".format(len(feature_ids), (time.time() - start_time) * 1000))
 
@@ -35,4 +43,4 @@ class FeaturesWorker(QThread):
             feature_ids.sort()
             self.features_ready.emit(list(feature_ids))
         else:
-            print("!!!abondoning")
+            print("!!!abondoning features worker")
