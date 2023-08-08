@@ -122,8 +122,8 @@ class PageDataWorker(QThread):
 
             except Exception as e:
                 # import traceback
-
                 # traceback.print_tb(e.__traceback__)
+                # print(e)
                 error_f_ids.append(f_id)
 
         if self.reverse:

@@ -351,7 +351,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             except Exception as e:
                 # import traceback
                 # traceback.print_tb(e.__traceback__)
-                # print(e)
+                # print(repr(e))
                 error_f_ids.append(f_id)
 
         if error_f_ids:
