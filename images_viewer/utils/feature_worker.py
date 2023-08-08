@@ -31,6 +31,16 @@ class FeaturesWorker(QThread):
         elif self.ff_index == 1:
             feature_ids = self.layer.selectedFeatureIds()
         elif self.ff_index == 2:
+            selected_ids = set(self.layer.selectedFeatureIds())
+            extent = self.canvas.extent()
+            request = QgsFeatureRequest().setFilterRect(extent)
+            for feat in self.layer.getFeatures(request):
+                if self.abandon:
+                    print("!!!abondoning features worker")
+                    return
+                if feat.id() in selected_ids:
+                    feature_ids.append(feat.id())
+        elif self.ff_index == 3:
             for feat in self.layer.getFeatures():
                 if self.abandon:
                     print("!!!abondoning features worker")
@@ -41,6 +51,6 @@ class FeaturesWorker(QThread):
 
         if not self.abandon:  # Check if the thread should be abandoned
             feature_ids.sort()
-            self.features_ready.emit(list(feature_ids))
+            self.features_ready.emit(feature_ids)
         else:
             print("!!!abondoning features worker")

@@ -28,7 +28,7 @@ from qgis.PyQt.QtWidgets import QAction
 from .images_viewer_dialog import ImagesViewerDialog
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-icon_path = os.path.join(current_dir, "icon.svg")
+icon_path = os.path.join(current_dir, "resources/icon.svg")
 
 
 class ImagesViewerPlugin:

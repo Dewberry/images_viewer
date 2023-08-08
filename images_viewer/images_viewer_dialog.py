@@ -35,6 +35,9 @@ from images_viewer.utils import (
 
 Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_viewer_dialog.ui"))
 
+current_dir = os.path.dirname(os.path.abspath(__file__))
+visible_selection_icon_path = os.path.join(current_dir, "resources/mActionOpenTableVisbileSelected.svg")
+
 
 class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
     """Main window for Images Viewer"""
@@ -95,8 +98,12 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             QIcon(QgsApplication.getThemeIcon("mActionOpenTableSelected.svg")), "Show Selected Features"
         )  # index 1
         self.featuresFilterComboBox.addItem(
-            QIcon(QgsApplication.getThemeIcon("mActionOpenTable.svg")), "Show All Features"
+            QIcon(visible_selection_icon_path), "Show Selected Visible Features"
         )  # index 2
+        self.featuresFilterComboBox.addItem(
+            QIcon(QgsApplication.getThemeIcon("mActionOpenTable.svg")), "Show All Features"
+        )  # index 3
+
         self.featuresFilterComboBox.setIconSize(QSize(20, 20))  # set icon
         self.featuresFilterComboBox.currentIndexChanged.connect(self.handleFFComboboxChange)
 
@@ -204,11 +211,17 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.canvas.extentsChanged.disconnect(self.refreshFeatures)
         elif self.ff_combo_box_index == 1:
             self.layer.selectionChanged.disconnect(self.refreshFeatures)
+        elif self.ff_combo_box_index == 2:
+            self.layer.selectionChanged.disconnect(self.refreshFeatures)
+            self.canvas.extentsChanged.disconnect(self.refreshFeatures)
 
         if index == 0:
             self.canvas.extentsChanged.connect(self.refreshFeatures)
         elif index == 1:
             self.layer.selectionChanged.connect(self.refreshFeatures)
+        elif index == 2:
+            self.layer.selectionChanged.connect(self.refreshFeatures)
+            self.canvas.extentsChanged.connect(self.refreshFeatures)
 
         self.ff_combo_box_index = index
 
@@ -238,6 +251,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
     def startPageWorker(self, page_start, reverse=False, connect=True):
         if not self.feature_ids:
+            self.clearGrid()
             return
 
         self.abondonWorkers(page_data=True)
@@ -291,15 +305,18 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         else:
             self.busyBar.setToolTip(f"Running Tasks: {self.busy_bar_count}")
 
+    def clearGrid(self):
+        for i in reversed(range(self.gridLayout.count())):
+            widget = self.gridLayout.itemAt(i).widget()
+            self.gridLayout.removeWidget(widget)
+            widget.hide()  # hide it for now, we will delete through cache
+
     def refreshGrid(self):
         # should run in main thread
         start_time = time.time()  # Start time before the operation
         print("Refreshing Grid...")
 
-        for i in reversed(range(self.gridLayout.count())):
-            widget = self.gridLayout.itemAt(i).widget()
-            self.gridLayout.removeWidget(widget)
-            widget.hide()  # hide it for now, we will delete through cache
+        self.clearGrid()
 
         frames = []
         error_f_ids = []
@@ -394,6 +411,9 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.canvas.extentsChanged.disconnect(self.refreshFeatures)
         elif self.ff_combo_box_index == 1:
             self.layer.selectionChanged.disconnect(self.refreshFeatures)
+        elif self.ff_combo_box_index == 2:
+            self.layer.selectionChanged.disconnect(self.refreshFeatures)
+            self.canvas.extentsChanged.disconnect(self.refreshFeatures)
 
         # save the dialog's position and size
         self.settings.setValue("geometry", self.saveGeometry())
