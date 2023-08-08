@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import List
 
 from PIL import Image as PILImage
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot
 from qgis.core import QgsExpression, QgsExpressionContext, QgsFeature
 
 from images_viewer.utils import ImageFactory
@@ -139,3 +139,8 @@ class PageDataWorker(QThread):
 
         except Exception as e:  # Catch any exception
             self.message_dispatched.emit("Page Worker: " + repr(e), 2)
+
+    @pyqtSlot()
+    def stop(self):
+        """Slot to stop the thread's operation safely."""
+        self.abandon = True

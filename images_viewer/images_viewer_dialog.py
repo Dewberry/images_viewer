@@ -405,11 +405,11 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
     def abondonWorkers(self, features=False, page_data=False):
         if features and self.features_worker:
-            self.features_worker.abandon = True
+            self.features_worker.stop()
             self.features_worker = None
 
         if page_data and self.page_data_worker:
-            self.page_data_worker.abandon = True
+            self.page_data_worker.stop()
             self.page_data_worker = None
 
     def clearCaches(self):

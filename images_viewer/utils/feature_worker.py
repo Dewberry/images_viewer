@@ -1,6 +1,6 @@
 # import time
 
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot
 from qgis.core import QgsFeatureRequest
 
 
@@ -49,3 +49,8 @@ class FeaturesWorker(QThread):
 
         except Exception as e:  # Catch any exception
             self.message_dispatched.emit("Features Worker: " + repr(e), 2)
+
+    @pyqtSlot()
+    def stop(self):
+        """Slot to stop the thread's operation safely."""
+        self.abandon = True
