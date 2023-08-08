@@ -70,6 +70,27 @@
                         </widget>
                     </item>
                     <item>
+                        <widget class="QProgressBar" name="busyBar">
+                            <property name="minimum">
+                                <number>0</number>
+                            </property>
+                            <property name="maximum">
+                                <number>0</number>
+                            </property>
+                            <property name="maximumHeight">
+                                <number>
+                                    0
+                                    <!-- by using height rahter than show/hide, we make sure items in layout don't move on show/hide-->
+                                </number>
+                            </property>
+                            <property name="maximumWidth">
+                                <number>
+                                    100
+                                </number>
+                            </property>
+                        </widget>
+                    </item>
+                    <item>
                         <spacer name="bottomBarSpacerLeft">
                             <property name="orientation">
                                 <enum>Qt::Horizontal</enum>

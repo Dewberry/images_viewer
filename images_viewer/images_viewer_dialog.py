@@ -13,7 +13,7 @@ import time
 
 from PyQt5 import uic
 from PyQt5.QtCore import QSettings, QSize, QVariant
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QPalette
 from qgis.core import (
     QgsApplication,
     QgsExpression,
@@ -51,6 +51,13 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.setupUi(self)
         self.setWindowTitle(self.layer.name())
 
+        # set inactive color to active, this is necessary because we expect users to work
+        # in main QGIS window, and this window may remain inactive
+        palette = self.busyBar.palette()
+        active_color = palette.color(QPalette.Active, QPalette.Highlight)
+        palette.setColor(QPalette.Inactive, QPalette.Highlight, active_color)
+        self.busyBar.setPalette(palette)
+
         # Restore previous settings
         self.settings = QSettings("QGIS3 - Images Viewer", self.layer.name())
         self.default_settings = QSettings("QGIS3 - Images Viewer", "")
@@ -65,6 +72,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                 self.restoreGeometry(self.default_settings.value("geometry"))
 
         self.canvas = self.iface.mapCanvas()
+        self.busy_bar_count = 0
         self.features_worker = None
         self.feature_ids = []
         self.page_data_worker = None
@@ -213,6 +221,8 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.features_worker.features_ready.connect(self.onFeaturesReady)
         self.features_worker.start()
         self.features_worker.finished.connect(self.features_worker.deleteLater)
+        self.features_worker.finished.connect(self.busyBarDecrement)
+        self.busyBarIncrement()
 
     def onFeaturesReady(self, feature_ids):
         if feature_ids == self.feature_ids:
@@ -243,7 +253,9 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             reverse,
         )
         if connect:
+            self.busyBarIncrement()
             self.page_data_worker.page_ready.connect(self.onPageReady)
+            self.page_data_worker.finished.connect(self.busyBarDecrement)
         self.page_data_worker.start()
         self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
 
@@ -265,6 +277,19 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         # get data for the next page in anticipation of user clicking next soon
         # do not connect to its signal, so that it doesn't actually display the next page
         self.startPageWorker(self.next_page_start, connect=False)
+
+    def busyBarIncrement(self):
+        self.busy_bar_count += 1
+        if self.busy_bar_count > 0:
+            self.busyBar.setMaximumHeight(20)
+            self.busyBar.setToolTip(f"Running Tasks: {self.busy_bar_count}")
+
+    def busyBarDecrement(self):
+        self.busy_bar_count -= 1
+        if self.busy_bar_count == 0:
+            self.busyBar.setMaximumHeight(0)
+        else:
+            self.busyBar.setToolTip(f"Running Tasks: {self.busy_bar_count}")
 
     def refreshGrid(self):
         # should run in main thread
