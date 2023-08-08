@@ -376,7 +376,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
     def refreshPageButtons(self):
         self.previousPageButton.setEnabled(self.page_start > 0)
-        self.nextPageButton.setEnabled(self.next_page_start < len(self.feature_ids))
+        self.nextPageButton.setEnabled(self.next_page_start and self.next_page_start < len(self.feature_ids))
 
     def displayPrevPage(self):
         self.previousPageButton.setEnabled(False)
