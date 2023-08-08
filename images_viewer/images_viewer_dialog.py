@@ -24,7 +24,6 @@ from qgis.core import (
 
 from images_viewer.frames import ChildrenFeatureFrame, FeatureFrame
 from images_viewer.utils import (
-    DATA_CACHE_CAPACITY,
     FRAMES_CACHE_CAPACITY,
     FeaturesWorker,
     LRUCache,
@@ -80,7 +79,9 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.feature_ids = []
         self.page_data_worker = None
         self.page_ids = []
-        self.features_data_cache = LRUCache(DATA_CACHE_CAPACITY)
+        self.page_size = 9  # change this to conrol how many frames per page
+        self.features_none_data_cache = set()
+        self.features_data_cache = LRUCache(self.page_size * 2)
         self.features_frames_cache = WidgetLRUCache(FRAMES_CACHE_CAPACITY)
 
         self.layer.displayExpressionChanged.connect(self.handleDisplayExpressionChange)
@@ -126,7 +127,6 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
         # Pagination
         self.page_start = 0  # inclusive
-        self.page_size = 9  # change this to conrol how many frames per page
         self.next_page_start = 0
         self.previousPageButton.clicked.connect(self.displayPrevPage)
         self.nextPageButton.clicked.connect(self.displayNextPage)
@@ -258,7 +258,9 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.page_data_worker = PageDataWorker(
             self.layer,
             self.feature_ids,
+            self.features_none_data_cache,
             self.features_data_cache,
+            self.features_frames_cache,
             self.image_field,
             self.field_type,
             page_start,
@@ -398,6 +400,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.page_data_worker = None
 
     def clearCaches(self):
+        self.features_none_data_cache.clear()
         self.features_data_cache.clear()  # clear all cached data
         self.features_frames_cache.clear()
 

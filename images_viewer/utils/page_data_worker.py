@@ -28,7 +28,9 @@ class PageDataWorker(QThread):
         self,
         layer,
         feature_ids,
+        features_none_data_cache,
         features_data_cache,
+        features_frames_cache,
         image_field,
         field_type,
         page_start,
@@ -39,7 +41,9 @@ class PageDataWorker(QThread):
         QThread.__init__(self)
         self.layer = layer
         self.feature_ids = feature_ids
+        self.features_none_data_cache = features_none_data_cache
         self.features_data_cache = features_data_cache
+        self.features_frames_cache = features_frames_cache
         self.image_field = image_field
         self.field_type = field_type
         self.page_start = page_start
@@ -49,6 +53,7 @@ class PageDataWorker(QThread):
         self.abandon = False
 
     def run(self):
+        """There must be at least one element in feature_ids"""
         start_time = time.time()  # Start time before the operation
         print("Page data worker starting work ...")
 
@@ -88,9 +93,12 @@ class PageDataWorker(QThread):
             count += 1
             f_id = self.feature_ids[i]
 
-            if self.features_data_cache.keyExist(f_id):  # cache hit: do not extract data again
-                if self.features_data_cache.get(f_id):  # if value is None it mean we don't need to have it on page
-                    page_f_ids.append(f_id)
+            if any(
+                [self.features_data_cache.keyExist(f_id), self.features_frames_cache.keyExist(f_id)]
+            ):  # cache hit: do not extract data again
+                page_f_ids.append(f_id)
+                continue
+            if f_id in self.features_none_data_cache:  # cache hit: this feature has no data
                 continue
             try:
                 feature = self.layer.getFeature(f_id)
@@ -112,13 +120,12 @@ class PageDataWorker(QThread):
                 data = ImageFactory.extract_data(field_content, self.field_type)
 
                 if not data:
-                    f_data = None
+                    self.features_none_data_cache.add(f_id)
                 else:
                     context.setFeature(feature)
                     f_data = FeatureData(feature, feature_title_expression.evaluate(context), data, child_features)
                     page_f_ids.append(f_id)
-
-                self.features_data_cache.put(f_id, f_data)
+                    self.features_data_cache.put(f_id, f_data)
 
             except Exception as e:
                 # import traceback
