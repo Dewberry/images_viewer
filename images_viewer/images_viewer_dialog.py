@@ -296,16 +296,14 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
     def busyBarIncrement(self):
         self.busy_bar_count += 1
-        if self.busy_bar_count > 0:
-            self.busyBar.setMaximumHeight(20)
-            self.busyBar.setToolTip(f"Running Tasks: {self.busy_bar_count}")
+        self.busyBar.setVisible(True)
+        self.busyBar.setToolTip(f"Running Tasks: {self.busy_bar_count}")
 
     def busyBarDecrement(self):
         self.busy_bar_count -= 1
         if self.busy_bar_count == 0:
-            self.busyBar.setMaximumHeight(0)
-        else:
-            self.busyBar.setToolTip(f"Running Tasks: {self.busy_bar_count}")
+            self.busyBar.setVisible(False)
+        self.busyBar.setToolTip(f"Running Tasks: {self.busy_bar_count}")
 
     def clearGrid(self):
         for i in reversed(range(self.gridLayout.count())):
