@@ -1,4 +1,4 @@
-import time
+# import time
 from dataclasses import dataclass
 from typing import List
 
@@ -54,8 +54,8 @@ class PageDataWorker(QThread):
 
     def run(self):
         """There must be at least one element in feature_ids"""
-        start_time = time.time()  # Start time before the operation
-        print("Page data worker starting work ...")
+        # start_time = time.time()  # Start time before the operation
+        # print("Page data worker starting work ...")
 
         if not self.image_field:
             self.page_ready.emit(self.page_start, self.page_start, [], [])
@@ -84,7 +84,7 @@ class PageDataWorker(QThread):
 
         for i in feature_range:
             if self.abandon:
-                print("!!!abondoning page worker")
+                # print("!!!abondoning page worker")
                 return
 
             if len(page_f_ids) >= self.page_size:
@@ -96,7 +96,7 @@ class PageDataWorker(QThread):
             if any(
                 [self.features_data_cache.keyExist(f_id), self.features_frames_cache.keyExist(f_id)]
             ):  # cache hit: do not extract data again
-                page_f_ids.append(f_id)
+                # page_f_ids.append(f_id)
                 continue
             if f_id in self.features_none_data_cache:  # cache hit: this feature has no data
                 continue
@@ -139,10 +139,10 @@ class PageDataWorker(QThread):
 
         next_page_start = self.page_start + count
 
-        print("Page Data [{}]: {} meiliseconds".format(count, (time.time() - start_time) * 1000))
+        # print("Page Data [{}]: {} meiliseconds".format(count, (time.time() - start_time) * 1000))
 
         if not self.abandon:  # Check if the thread should be abandoned
-            print("current lenght of data_store", self.features_data_cache.length())
+            # print("current lenght of data_store", self.features_data_cache.length())
             self.page_ready.emit(self.page_start, next_page_start, page_f_ids, error_f_ids)
-        else:
-            print("!!!abondoning page worker")
+        # else:
+        #     print("!!!abondoning page worker")

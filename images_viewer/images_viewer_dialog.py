@@ -9,7 +9,6 @@ Variables should be snake_case to follow python's guidlines
 
 
 import os
-import time
 
 from PyQt5 import uic
 from PyQt5.QtCore import QSettings, QSize, QVariant
@@ -31,6 +30,9 @@ from images_viewer.utils import (
     WidgetLRUCache,
     create_tool_button,
 )
+
+# import time
+
 
 Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_viewer_dialog.ui"))
 
@@ -313,8 +315,8 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
     def refreshGrid(self):
         # should run in main thread
-        start_time = time.time()  # Start time before the operation
-        print("Refreshing Grid...")
+        # start_time = time.time()  # Start time before the operation
+        # print("Refreshing Grid...")
 
         self.clearGrid()
 
@@ -371,8 +373,8 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                 col = 0
                 row += 1
 
-        print("Grid: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
-        print("current length of frames store", self.features_frames_cache.length())
+        # print("Grid: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
+        # print("current length of frames store", self.features_frames_cache.length())
 
     def refreshPageButtons(self):
         self.previousPageButton.setEnabled(self.page_start > 0)
