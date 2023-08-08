@@ -238,12 +238,14 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
     def refreshFeatures(self):
         self.abondonWorkers(True, True)
 
-        self.features_worker = FeaturesWorker(self.layer, self.canvas, self.ff_combo_box_index)
+        extent = self.canvas.extent()
+        self.features_worker = FeaturesWorker(self.layer, extent, self.ff_combo_box_index)
         self.features_worker.features_ready.connect(self.onFeaturesReady)
-        self.features_worker.start()
         self.features_worker.finished.connect(self.features_worker.deleteLater)
+        self.features_worker.message_dispatched.connect(self.handleWorkersMessage)
         self.features_worker.finished.connect(self.busyBarDecrement)
         self.busyBarIncrement()
+        self.features_worker.start()
 
     def onFeaturesReady(self, feature_ids):
         if feature_ids == self.feature_ids:
@@ -281,8 +283,9 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.busyBarIncrement()
             self.page_data_worker.page_ready.connect(self.onPageReady)
             self.page_data_worker.finished.connect(self.busyBarDecrement)
-        self.page_data_worker.start()
+        self.page_data_worker.message_dispatched.connect(self.handleWorkersMessage)
         self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
+        self.page_data_worker.start()
 
     def onPageReady(self, page_start, next_page_start, page_f_ids, error_f_ids):
         if error_f_ids:
@@ -302,6 +305,9 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         # get data for the next page in anticipation of user clicking next soon
         # do not connect to its signal, so that it doesn't actually display the next page
         self.startPageWorker(self.next_page_start, connect=False)
+
+    def handleWorkersMessage(self, message: str, level: int):
+        self.iface.messageBar().pushMessage(message, level)
 
     def busyBarIncrement(self):
         self.busy_bar_count += 1
