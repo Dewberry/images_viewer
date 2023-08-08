@@ -106,12 +106,18 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.featuresFilterComboBox.addItem(
             QIcon(QgsApplication.getThemeIcon("mActionOpenTable.svg")), "Show All Features"
         )  # index 3
-
         self.featuresFilterComboBox.setIconSize(QSize(20, 20))  # set icon
-        self.featuresFilterComboBox.currentIndexChanged.connect(self.handleFFComboboxChange)
 
-        self.ff_combo_box_index = 0  # Start with visible
-        self.canvas.extentsChanged.connect(self.refreshFeatures)
+        if self.layer.isSpatial():
+            self.ff_combo_box_index = 0  # Start with visible
+            self.canvas.extentsChanged.connect(self.refreshFeatures)
+        else:
+            for index in [0, 2]:
+                item = self.featuresFilterComboBox.model().item(index)
+                item.setEnabled(False)
+            self.ff_combo_box_index = 3
+            self.featuresFilterComboBox.setCurrentIndex(3)
+        self.featuresFilterComboBox.currentIndexChanged.connect(self.handleFFComboboxChange)
 
         # Realtions
         self.relations = QgsProject.instance().relationManager().referencedRelations(self.layer)
@@ -254,6 +260,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
     def startPageWorker(self, page_start, reverse=False, connect=True):
         if not self.feature_ids:
             self.clearGrid()
+            self.refreshPageButtons()
             return
 
         self.abondonWorkers(page_data=True)
