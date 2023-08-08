@@ -94,7 +94,7 @@ class PageDataWorker(QThread):
                 if any(
                     [self.features_data_cache.keyExist(f_id), self.features_frames_cache.keyExist(f_id)]
                 ):  # cache hit: do not extract data again
-                    # page_f_ids.append(f_id)
+                    page_f_ids.append(f_id)
                     continue
                 if f_id in self.features_none_data_cache:  # cache hit: this feature has no data
                     continue
