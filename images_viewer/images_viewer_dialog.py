@@ -9,11 +9,10 @@ Variables should be snake_case to follow python's guidlines
 
 
 import os
-import time
 
 from PyQt5 import uic
-from PyQt5.QtCore import QSettings, QSize, QVariant
-from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import QSettings, QSize, QThread, QVariant
+from PyQt5.QtGui import QIcon, QPalette
 from qgis.core import (
     QgsApplication,
     QgsExpression,
@@ -23,9 +22,22 @@ from qgis.core import (
 )
 
 from images_viewer.frames import ChildrenFeatureFrame, FeatureFrame
-from images_viewer.utils import FeaturesWorker, PageDataWorker, create_tool_button
+from images_viewer.utils import (
+    FRAMES_CACHE_CAPACITY,
+    FeaturesWorker,
+    LRUCache,
+    PageDataWorker,
+    WidgetLRUCache,
+    create_tool_button,
+)
+
+# import time
+
 
 Ui_Dialog, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(__file__), "images_viewer_dialog.ui"))
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+visible_selection_icon_path = os.path.join(current_dir, "resources/mActionOpenTableVisbileSelected.svg")
 
 
 class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
@@ -43,6 +55,13 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.setupUi(self)
         self.setWindowTitle(self.layer.name())
 
+        # set inactive color to active, this is necessary because we expect users to work
+        # in main QGIS window, and this window may remain inactive
+        palette = self.busyBar.palette()
+        active_color = palette.color(QPalette.Active, QPalette.Highlight)
+        palette.setColor(QPalette.Inactive, QPalette.Highlight, active_color)
+        self.busyBar.setPalette(palette)
+
         # Restore previous settings
         self.settings = QSettings("QGIS3 - Images Viewer", self.layer.name())
         self.default_settings = QSettings("QGIS3 - Images Viewer", "")
@@ -57,12 +76,15 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                 self.restoreGeometry(self.default_settings.value("geometry"))
 
         self.canvas = self.iface.mapCanvas()
+        self.busy_bar_count = 0
         self.features_worker = None
         self.feature_ids = []
         self.page_data_worker = None
         self.page_ids = []
-        self.features_data_map = {}
-        self.features_frames_map = {}
+        self.page_size = 9  # change this to conrol how many frames per page
+        self.features_none_data_cache = set()
+        self.features_data_cache = LRUCache(self.page_size * 2)
+        self.features_frames_cache = WidgetLRUCache(FRAMES_CACHE_CAPACITY)
 
         self.layer.displayExpressionChanged.connect(self.handleDisplayExpressionChange)
 
@@ -79,13 +101,23 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             QIcon(QgsApplication.getThemeIcon("mActionOpenTableSelected.svg")), "Show Selected Features"
         )  # index 1
         self.featuresFilterComboBox.addItem(
-            QIcon(QgsApplication.getThemeIcon("mActionOpenTable.svg")), "Show All Features"
+            QIcon(visible_selection_icon_path), "Show Selected Visible Features"
         )  # index 2
+        self.featuresFilterComboBox.addItem(
+            QIcon(QgsApplication.getThemeIcon("mActionOpenTable.svg")), "Show All Features"
+        )  # index 3
         self.featuresFilterComboBox.setIconSize(QSize(20, 20))  # set icon
-        self.featuresFilterComboBox.currentIndexChanged.connect(self.handleFFComboboxChange)
 
-        self.ff_combo_box_index = 0  # Start with visible
-        self.canvas.extentsChanged.connect(self.refreshFeatures)
+        if self.layer.isSpatial():
+            self.ff_combo_box_index = 0  # Start with visible
+            self.canvas.extentsChanged.connect(self.refreshFeatures)
+        else:
+            for index in [0, 2]:
+                item = self.featuresFilterComboBox.model().item(index)
+                item.setEnabled(False)
+            self.ff_combo_box_index = 3
+            self.featuresFilterComboBox.setCurrentIndex(3)
+        self.featuresFilterComboBox.currentIndexChanged.connect(self.handleFFComboboxChange)
 
         # Realtions
         self.relations = QgsProject.instance().relationManager().referencedRelations(self.layer)
@@ -103,7 +135,6 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
         # Pagination
         self.page_start = 0  # inclusive
-        self.page_size = 9  # change this to conrol how many frames per page
         self.next_page_start = 0
         self.previousPageButton.clicked.connect(self.displayPrevPage)
         self.nextPageButton.clicked.connect(self.displayNextPage)
@@ -123,7 +154,8 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
     def handelHardRefresh(self):
         self.abondonWorkers(True, True)
         self.clearCaches()
-        self.refreshFeatures()  # this will clear the feature_ids anyways
+        self.feature_ids = []
+        self.refreshFeatures()
 
     def handelRelationChange(self, index):
         """
@@ -171,7 +203,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.field_type = field.type()
 
         # we are not calling features refresh because we don't want to lose the current page start
-        # this will be useful when a layer has images in two
+        # this will be useful when a layer has images in two fields
         self.startPageWorker(self.page_start)
 
     def handleDisplayExpressionChange(self):
@@ -187,11 +219,17 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.canvas.extentsChanged.disconnect(self.refreshFeatures)
         elif self.ff_combo_box_index == 1:
             self.layer.selectionChanged.disconnect(self.refreshFeatures)
+        elif self.ff_combo_box_index == 2:
+            self.layer.selectionChanged.disconnect(self.refreshFeatures)
+            self.canvas.extentsChanged.disconnect(self.refreshFeatures)
 
         if index == 0:
             self.canvas.extentsChanged.connect(self.refreshFeatures)
         elif index == 1:
             self.layer.selectionChanged.connect(self.refreshFeatures)
+        elif index == 2:
+            self.layer.selectionChanged.connect(self.refreshFeatures)
+            self.canvas.extentsChanged.connect(self.refreshFeatures)
 
         self.ff_combo_box_index = index
 
@@ -200,10 +238,19 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
     def refreshFeatures(self):
         self.abondonWorkers(True, True)
 
-        self.features_worker = FeaturesWorker(self.layer, self.canvas, self.ff_combo_box_index)
-        self.features_worker.features_ready.connect(self.onFeaturesReady)
-        self.features_worker.start()
+        extent = self.canvas.extent()
+        self.features_thread = QThread()
+        self.features_worker = FeaturesWorker(self.layer, extent, self.ff_combo_box_index)
+        self.features_worker.moveToThread(self.features_thread)
+        self.features_thread.started.connect(self.features_worker.run)
+        self.features_worker.finished.connect(self.busyBarDecrement)
+        self.features_worker.finished.connect(self.features_thread.quit)
         self.features_worker.finished.connect(self.features_worker.deleteLater)
+        self.features_thread.finished.connect(self.features_thread.deleteLater)
+        self.features_worker.features_ready.connect(self.onFeaturesReady)
+        self.features_worker.message_dispatched.connect(self.handleWorkersMessage)
+        self.busyBarIncrement()
+        self.features_worker.start()  # this should be feautures_thread.start() but that is crashing QGIS
 
     def onFeaturesReady(self, feature_ids):
         if feature_ids == self.feature_ids:
@@ -219,13 +266,17 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
     def startPageWorker(self, page_start, reverse=False, connect=True):
         if not self.feature_ids:
+            self.clearGrid()
+            self.refreshPageButtons()
             return
 
         self.abondonWorkers(page_data=True)
         self.page_data_worker = PageDataWorker(
             self.layer,
             self.feature_ids,
-            self.features_data_map,
+            self.features_none_data_cache,
+            self.features_data_cache,
+            self.features_frames_cache,
             self.image_field,
             self.field_type,
             page_start,
@@ -234,9 +285,12 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             reverse,
         )
         if connect:
+            self.busyBarIncrement()
             self.page_data_worker.page_ready.connect(self.onPageReady)
-        self.page_data_worker.start()
+            self.page_data_worker.finished.connect(self.busyBarDecrement)
+        self.page_data_worker.message_dispatched.connect(self.handleWorkersMessage)
         self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
+        self.page_data_worker.start()
 
     def onPageReady(self, page_start, next_page_start, page_f_ids, error_f_ids):
         if error_f_ids:
@@ -246,35 +300,54 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.page_start = page_start
         self.next_page_start = next_page_start
 
-        if self.page_ids != page_f_ids:
-            self.page_ids = page_f_ids
-            self.refreshGrid()
-            self.refreshPageButtons()
+        # we can do a check here that if page_ids is same as previous and fields are also same
+        # then do not refresh, but that is not worth the effort since refeshing grid would take few meiliseconds
+        # data would already be in cache
+        self.page_ids = page_f_ids
+        self.refreshGrid()
+        self.refreshPageButtons()
 
         # get data for the next page in anticipation of user clicking next soon
         # do not connect to its signal, so that it doesn't actually display the next page
         self.startPageWorker(self.next_page_start, connect=False)
 
-    def refreshGrid(self):
-        # should run in main thread
-        start_time = time.time()  # Start time before the operation
-        print("Refreshing Grid...")
+    def handleWorkersMessage(self, message: str, level: int):
+        self.iface.messageBar().pushMessage(message, level)
 
+    def busyBarIncrement(self):
+        self.busy_bar_count += 1
+        self.busyBar.setVisible(True)
+        self.busyBar.setToolTip(f"Running Tasks: {self.busy_bar_count}")
+
+    def busyBarDecrement(self):
+        self.busy_bar_count -= 1
+        if self.busy_bar_count == 0:
+            self.busyBar.setVisible(False)
+        self.busyBar.setToolTip(f"Running Tasks: {self.busy_bar_count}")
+
+    def clearGrid(self):
         for i in reversed(range(self.gridLayout.count())):
             widget = self.gridLayout.itemAt(i).widget()
             self.gridLayout.removeWidget(widget)
             widget.hide()  # hide it for now, we will delete through cache
+
+    def refreshGrid(self):
+        # should run in main thread
+        # start_time = time.time()  # Start time before the operation
+        # print("Refreshing Grid...")
+
+        self.clearGrid()
 
         frames = []
         error_f_ids = []
 
         for f_id in self.page_ids:
             try:
-                if f_id in self.features_frames_map:  # cache hit
-                    frame = self.features_frames_map[f_id]
+                if self.features_frames_cache.keyExist(f_id):  # cache hit
+                    frame = self.features_frames_cache.get(f_id)
                     frame.show()
                 else:  # cache miss
-                    f_data = self.features_data_map[f_id]
+                    f_data = self.features_data_cache.get(f_id)
 
                     if not self.relation:
                         frame = FeatureFrame(self.iface, self.canvas, self.layer, f_data.feature, f_data.title)
@@ -291,15 +364,14 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                             f_data.children,
                         )
                     frame.buildUI(f_data.data)
-                    # free up memory by deleting the data from data cache and store frame in frame cache
-                    self.features_data_map.pop(f_id, None)
-                    self.features_frames_map[f_id] = frame
+                    self.features_frames_cache.put(f_id, frame)
 
                 frames.append(frame)
 
             except Exception as e:
                 # import traceback
                 # traceback.print_tb(e.__traceback__)
+                # print(repr(e))
                 error_f_ids.append(f_id)
 
         if error_f_ids:
@@ -319,12 +391,12 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                 col = 0
                 row += 1
 
-        print("Grid: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
-        print("current length of frames store", len(self.features_frames_map))
+        # print("Grid: {} meiliseconds".format((time.time() - start_time) * 1000))  # Print out the time it took
+        # print("current length of frames store", self.features_frames_cache.length())
 
     def refreshPageButtons(self):
         self.previousPageButton.setEnabled(self.page_start > 0)
-        self.nextPageButton.setEnabled(self.next_page_start < len(self.feature_ids))
+        self.nextPageButton.setEnabled(self.next_page_start and self.next_page_start < len(self.feature_ids))
 
     def displayPrevPage(self):
         self.previousPageButton.setEnabled(False)
@@ -338,16 +410,18 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
     def abondonWorkers(self, features=False, page_data=False):
         if features and self.features_worker:
-            self.features_worker.abandon = True
+            self.features_worker.stop()
+            self.features_thread = None
             self.features_worker = None
 
         if page_data and self.page_data_worker:
-            self.page_data_worker.abandon = True
+            self.page_data_worker.stop()
             self.page_data_worker = None
 
     def clearCaches(self):
-        self.features_data_map.clear()  # clear all cached data
-        self.features_frames_map.clear()
+        self.features_none_data_cache.clear()
+        self.features_data_cache.clear()  # clear all cached data
+        self.features_frames_cache.clear()
 
     def closeEvent(self, event):
         """Extends the super.closeEvent"""
@@ -359,6 +433,9 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.canvas.extentsChanged.disconnect(self.refreshFeatures)
         elif self.ff_combo_box_index == 1:
             self.layer.selectionChanged.disconnect(self.refreshFeatures)
+        elif self.ff_combo_box_index == 2:
+            self.layer.selectionChanged.disconnect(self.refreshFeatures)
+            self.canvas.extentsChanged.disconnect(self.refreshFeatures)
 
         # save the dialog's position and size
         self.settings.setValue("geometry", self.saveGeometry())
