@@ -11,7 +11,7 @@ Variables should be snake_case to follow python's guidlines
 import os
 
 from PyQt5 import uic
-from PyQt5.QtCore import QSettings, QSize, QVariant
+from PyQt5.QtCore import QSettings, QSize, QThread, QVariant
 from PyQt5.QtGui import QIcon, QPalette
 from qgis.core import (
     QgsApplication,
@@ -239,13 +239,18 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.abondonWorkers(True, True)
 
         extent = self.canvas.extent()
+        self.features_thread = QThread()
         self.features_worker = FeaturesWorker(self.layer, extent, self.ff_combo_box_index)
-        self.features_worker.features_ready.connect(self.onFeaturesReady)
-        self.features_worker.finished.connect(self.features_worker.deleteLater)
-        self.features_worker.message_dispatched.connect(self.handleWorkersMessage)
+        self.features_worker.moveToThread(self.features_thread)
+        self.features_thread.started.connect(self.features_worker.run)
         self.features_worker.finished.connect(self.busyBarDecrement)
+        self.features_worker.finished.connect(self.features_thread.quit)
+        self.features_worker.finished.connect(self.features_worker.deleteLater)
+        self.features_thread.finished.connect(self.features_thread.deleteLater)
+        self.features_worker.features_ready.connect(self.onFeaturesReady)
+        self.features_worker.message_dispatched.connect(self.handleWorkersMessage)
         self.busyBarIncrement()
-        self.features_worker.start()
+        self.features_worker.start()  # this should be feautures_thread.start() but that is crashing QGIS
 
     def onFeaturesReady(self, feature_ids):
         if feature_ids == self.feature_ids:
@@ -406,6 +411,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
     def abondonWorkers(self, features=False, page_data=False):
         if features and self.features_worker:
             self.features_worker.stop()
+            self.features_thread = None
             self.features_worker = None
 
         if page_data and self.page_data_worker:
