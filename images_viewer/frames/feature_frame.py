@@ -67,19 +67,20 @@ class FeatureFrame(QFrame):
         selectButton = create_tool_button("mIconSelected.svg", "Select this feature", self.select_feature)
         toolbar.addWidget(selectButton)
 
-        zoomButton = create_tool_button("mActionZoomTo.svg", "Zoom to this feature", self.zoom_to_feature)
-        toolbar.addWidget(zoomButton)
+        if self.layer.isSpatial():
+            zoomButton = create_tool_button("mActionZoomTo.svg", "Zoom to this feature", self.zoom_to_feature)
+            toolbar.addWidget(zoomButton)
 
-        panButton = create_tool_button("mActionPanTo.svg", "Pan to this feature", self.pan_to_feature)
-        toolbar.addWidget(panButton)
+            panButton = create_tool_button("mActionPanTo.svg", "Pan to this feature", self.pan_to_feature)
+            toolbar.addWidget(panButton)
 
-        panFlashButton = create_tool_button(
-            "mActionPanHighlightFeature.svg", "Pan and Flash this feature", self.pan_flash_feature
-        )
-        toolbar.addWidget(panFlashButton)
+            panFlashButton = create_tool_button(
+                "mActionPanHighlightFeature.svg", "Pan and Flash this feature", self.pan_flash_feature
+            )
+            toolbar.addWidget(panFlashButton)
 
-        flashButton = create_tool_button("mActionHighlightFeature.svg", "Flash this feature", self.flash_feature)
-        toolbar.addWidget(flashButton)
+            flashButton = create_tool_button("mActionHighlightFeature.svg", "Flash this feature", self.flash_feature)
+            toolbar.addWidget(flashButton)
 
         return toolbar
 
