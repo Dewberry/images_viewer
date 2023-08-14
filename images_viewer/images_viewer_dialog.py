@@ -13,13 +13,7 @@ import os
 from PyQt5 import uic
 from PyQt5.QtCore import QSettings, QSize, QThread, QVariant
 from PyQt5.QtGui import QIcon, QPalette
-from qgis.core import (
-    QgsApplication,
-    QgsExpression,
-    QgsFields,
-    QgsProject,
-    QgsVectorLayer,
-)
+from qgis.core import QgsApplication, QgsFields, QgsProject, QgsVectorLayer
 
 from images_viewer.frames import ChildrenFeatureFrame, FeatureFrame
 from images_viewer.utils import (
@@ -207,11 +201,10 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.startPageWorker(self.page_start)
 
     def handleDisplayExpressionChange(self):
-        display_expression = self.layer.displayExpression()
-        self.feature_title_expression = QgsExpression(display_expression)
-
         # we are not calling features refresh because we don't want to lose the current page start
-        # this will be useful when a layer has images in two
+        # this will be useful when a layer has images in two fields
+        self.clearGrid()
+        self.clearCaches()
         self.startPageWorker(self.page_start)
 
     def handleFFComboboxChange(self, index):
