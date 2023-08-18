@@ -29,6 +29,7 @@ class PageDataWorker(QThread):
         layer,
         feature_ids,
         features_none_data_cache,
+        features_broken_data_cache,
         features_data_cache,
         features_frames_cache,
         image_field,
@@ -42,6 +43,7 @@ class PageDataWorker(QThread):
         self.layer = layer
         self.feature_ids = feature_ids
         self.features_none_data_cache = features_none_data_cache
+        self.features_broken_data_cache = features_broken_data_cache
         self.features_data_cache = features_data_cache
         self.features_frames_cache = features_frames_cache
         self.image_field = image_field
@@ -96,7 +98,9 @@ class PageDataWorker(QThread):
                 ):  # cache hit: do not extract data again
                     page_f_ids.append(f_id)
                     continue
-                if f_id in self.features_none_data_cache:  # cache hit: this feature has no data
+                if any(
+                    [f_id in self.features_none_data_cache, f_id in self.features_broken_data_cache]
+                ):  # cache hit: this feature has no/corrupt data
                     continue
                 try:
                     feature = self.layer.getFeature(f_id)
@@ -117,7 +121,7 @@ class PageDataWorker(QThread):
 
                     data = ImageFactory.extract_data(field_content, self.field_type)
 
-                    if not data:
+                    if not data:  # feature with no image data
                         self.features_none_data_cache.add(f_id)
                     else:
                         context.setFeature(feature)
@@ -126,6 +130,9 @@ class PageDataWorker(QThread):
                         self.features_data_cache.put(f_id, f_data)
 
                 except Exception as e:
+                    self.features_broken_data_cache.add(
+                        f_id
+                    )  # features with corrupt data should not be evaluated again
                     error_f_ids.append(f_id)
 
             if self.reverse:

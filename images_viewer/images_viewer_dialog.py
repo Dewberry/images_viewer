@@ -77,6 +77,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.page_ids = []
         self.page_size = 9  # change this to conrol how many frames per page
         self.features_none_data_cache = set()
+        self.features_broken_data_cache = set()
         self.features_data_cache = LRUCache(self.page_size * 2)
         self.features_frames_cache = WidgetLRUCache(FRAMES_CACHE_CAPACITY)
 
@@ -268,6 +269,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.layer,
             self.feature_ids,
             self.features_none_data_cache,
+            self.features_broken_data_cache,
             self.features_data_cache,
             self.features_frames_cache,
             self.image_field,
@@ -413,6 +415,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
 
     def clearCaches(self):
         self.features_none_data_cache.clear()
+        self.features_broken_data_cache.clear()
         self.features_data_cache.clear()  # clear all cached data
         self.features_frames_cache.clear()
 
