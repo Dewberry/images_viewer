@@ -18,8 +18,8 @@ from qgis.core import QgsApplication, QgsFields, QgsProject, QgsVectorLayer
 from images_viewer.frames import ChildrenFeatureFrame, FeatureFrame
 from images_viewer.utils import (
     FRAMES_CACHE_CAPACITY,
+    FeatureDataLRUCache,
     FeaturesWorker,
-    LRUCache,
     PageDataWorker,
     WidgetLRUCache,
     create_tool_button,
@@ -78,7 +78,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.page_size = 9  # change this to conrol how many frames per page
         self.features_none_data_cache = set()
         self.features_broken_data_cache = set()
-        self.features_data_cache = LRUCache(self.page_size * 2)
+        self.features_data_cache = FeatureDataLRUCache(self.page_size * 2)
         self.features_frames_cache = WidgetLRUCache(FRAMES_CACHE_CAPACITY)
 
         self.layer.displayExpressionChanged.connect(self.handleDisplayExpressionChange)
@@ -414,14 +414,15 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.page_data_worker = None
 
     def clearCaches(self):
+        self.features_frames_cache.clear()
         self.features_none_data_cache.clear()
         self.features_broken_data_cache.clear()
         self.features_data_cache.clear()  # clear all cached data
-        self.features_frames_cache.clear()
 
     def closeEvent(self, event):
         """Extends the super.closeEvent"""
         self.abondonWorkers(True, True)
+        self.clearCaches()  # release resources
 
         # When window is closed, disconnect  signals
         self.layer.displayExpressionChanged.disconnect(self.handleDisplayExpressionChange)

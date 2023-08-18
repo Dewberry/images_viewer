@@ -68,3 +68,21 @@ class WidgetLRUCache(LRUCache):
             for v in self._cache.values():
                 v.deleteLater()
             self._cache.clear()
+
+
+class FeatureDataLRUCache(LRUCache):
+    """Apply data.close() method to the image data at deletion"""
+
+    def put(self, key: Any, value: Any) -> Any:
+        with self._lock:
+            self._cache[key] = value
+            self._cache.move_to_end(key)
+            if len(self._cache) > self._capacity:
+                _, v = self._cache.popitem(last=False)
+                v.data.close()
+
+    def clear(self) -> Any:
+        with self._lock:
+            for v in self._cache.values():
+                v.data.close()
+            self._cache.clear()
