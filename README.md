@@ -5,3 +5,8 @@ QGIS Plugin to View Images Stored in a Layer (or its related layers) as URL, Abs
 
 ## Installation
 Images Viewer Plugin can be downloaded from the official QGIS plugin repository or https://github.com/Dewberry/images_viewer/releases
+
+
+## Credits
+
+1. OpenGL Widgets code modified from https://github.com/cazitouni/QgisGLViewer
