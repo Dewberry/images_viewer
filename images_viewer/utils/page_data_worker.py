@@ -3,7 +3,7 @@ from typing import List
 
 from PIL import Image as PILImage
 from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot
-from qgis.core import QgsExpression, QgsExpressionContext, QgsFeature
+from qgis.core import QgsExpression, QgsExpressionContext, QgsFeature, QgsMessageLog
 
 from images_viewer.utils import ImageFactory
 
@@ -21,7 +21,7 @@ class FeatureData:
 class PageDataWorker(QThread):
     """Thread to get data for the page based on page_start index"""
 
-    page_ready = pyqtSignal(int, int, list, list)  # page start, next page start, page_f_ids, error_f_ids
+    page_ready = pyqtSignal(int, int, list)  # page start, next page start, page_f_ids
     message_dispatched = pyqtSignal(str, int)
 
     def __init__(
@@ -79,7 +79,8 @@ class PageDataWorker(QThread):
                 feature_range = range(self.page_start - 1, -1, -1)
 
             page_f_ids = []
-            error_f_ids = []
+            error_occured = False
+
             count = 0
 
             for i in feature_range:
@@ -130,10 +131,15 @@ class PageDataWorker(QThread):
                         self.features_data_cache.put(f_id, f_data)
 
                 except Exception as e:
+                    error_occured = True
                     self.features_broken_data_cache.add(
                         f_id
                     )  # features with corrupt data should not be evaluated again
-                    error_f_ids.append(f_id)
+                    QgsMessageLog.logMessage(
+                        f"Extracting Data: Feature Id: {f_id} Error: {repr(e)}",
+                        "Images Viewer",
+                        level=2,
+                    )  # not sure if this is thread safe
 
             if self.reverse:
                 page_f_ids.reverse()
@@ -142,10 +148,15 @@ class PageDataWorker(QThread):
             next_page_start = self.page_start + count
 
             if not self.abandon:  # Check if the thread should be abandoned
-                self.page_ready.emit(self.page_start, next_page_start, page_f_ids, error_f_ids)
+                self.page_ready.emit(self.page_start, next_page_start, page_f_ids)
+
+            if error_occured:
+                self.message_dispatched.emit(
+                    "Extracting Data: Unable to get image data from all features. See logs for details.", 1
+                )
 
         except Exception as e:  # Catch any exception
-            self.message_dispatched.emit("Page Worker: " + repr(e), 2)
+            self.message_dispatched.emit("Extracting Data: " + repr(e), 2)
 
     @pyqtSlot()
     def stop(self):
