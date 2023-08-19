@@ -13,13 +13,19 @@ import os
 from PyQt5 import uic
 from PyQt5.QtCore import QSettings, QSize, QThread, QVariant
 from PyQt5.QtGui import QIcon, QPalette
-from qgis.core import QgsApplication, QgsFields, QgsProject, QgsVectorLayer
+from qgis.core import (
+    QgsApplication,
+    QgsFields,
+    QgsMessageLog,
+    QgsProject,
+    QgsVectorLayer,
+)
 
 from images_viewer.frames import ChildrenFeatureFrame, FeatureFrame
 from images_viewer.utils import (
     FRAMES_CACHE_CAPACITY,
+    FeatureDataLRUCache,
     FeaturesWorker,
-    LRUCache,
     PageDataWorker,
     WidgetLRUCache,
     create_tool_button,
@@ -77,7 +83,8 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.page_ids = []
         self.page_size = 9  # change this to conrol how many frames per page
         self.features_none_data_cache = set()
-        self.features_data_cache = LRUCache(self.page_size * 2)
+        self.features_broken_data_cache = set()
+        self.features_data_cache = FeatureDataLRUCache(self.page_size * 2)
         self.features_frames_cache = WidgetLRUCache(FRAMES_CACHE_CAPACITY)
 
         self.layer.displayExpressionChanged.connect(self.handleDisplayExpressionChange)
@@ -268,6 +275,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.layer,
             self.feature_ids,
             self.features_none_data_cache,
+            self.features_broken_data_cache,
             self.features_data_cache,
             self.features_frames_cache,
             self.image_field,
@@ -285,11 +293,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.page_data_worker.finished.connect(self.page_data_worker.deleteLater)
         self.page_data_worker.start()
 
-    def onPageReady(self, page_start, next_page_start, page_f_ids, error_f_ids):
-        if error_f_ids:
-            self.iface.messageBar().pushMessage(
-                "Images Viewer: Extracting Data:", f"Error on {len(error_f_ids)} features. Ids: {error_f_ids}", level=1
-            )
+    def onPageReady(self, page_start, next_page_start, page_f_ids):
         self.page_start = page_start
         self.next_page_start = next_page_start
 
@@ -332,7 +336,7 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
         self.clearGrid()
 
         frames = []
-        error_f_ids = []
+        error_occured = False
 
         for f_id in self.page_ids:
             try:
@@ -365,13 +369,16 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
                 # import traceback
                 # traceback.print_tb(e.__traceback__)
                 # print(repr(e))
-                error_f_ids.append(f_id)
+                error_occured = True
+                QgsMessageLog.logMessage(
+                    f"Creating Frames: Feature Id: {f_id} Error: {repr(e)}",
+                    "Images Viewer",
+                    level=1,
+                )
 
-        if error_f_ids:
+        if error_occured:
             self.iface.messageBar().pushMessage(
-                "Images Viewer: Creating Frames:",
-                f"Error on {len(error_f_ids)} features. Ids: {error_f_ids}",
-                level=1,
+                "Creating Frames: Unable to create frames for all features. See logs for details.", 1
             )
 
         row = 0
@@ -412,13 +419,15 @@ class ImagesViewerDialog(QtBaseClass, Ui_Dialog):
             self.page_data_worker = None
 
     def clearCaches(self):
-        self.features_none_data_cache.clear()
-        self.features_data_cache.clear()  # clear all cached data
         self.features_frames_cache.clear()
+        self.features_none_data_cache.clear()
+        self.features_broken_data_cache.clear()
+        self.features_data_cache.clear()  # clear all cached data
 
     def closeEvent(self, event):
         """Extends the super.closeEvent"""
         self.abondonWorkers(True, True)
+        self.clearCaches()  # release resources
 
         # When window is closed, disconnect  signals
         self.layer.displayExpressionChanged.disconnect(self.handleDisplayExpressionChange)

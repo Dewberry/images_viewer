@@ -3,7 +3,7 @@ from typing import List
 
 from PIL import Image as PILImage
 from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot
-from qgis.core import QgsExpression, QgsExpressionContext, QgsFeature
+from qgis.core import QgsExpression, QgsExpressionContext, QgsFeature, QgsMessageLog
 
 from images_viewer.utils import ImageFactory
 
@@ -21,7 +21,7 @@ class FeatureData:
 class PageDataWorker(QThread):
     """Thread to get data for the page based on page_start index"""
 
-    page_ready = pyqtSignal(int, int, list, list)  # page start, next page start, page_f_ids, error_f_ids
+    page_ready = pyqtSignal(int, int, list)  # page start, next page start, page_f_ids
     message_dispatched = pyqtSignal(str, int)
 
     def __init__(
@@ -29,6 +29,7 @@ class PageDataWorker(QThread):
         layer,
         feature_ids,
         features_none_data_cache,
+        features_broken_data_cache,
         features_data_cache,
         features_frames_cache,
         image_field,
@@ -42,6 +43,7 @@ class PageDataWorker(QThread):
         self.layer = layer
         self.feature_ids = feature_ids
         self.features_none_data_cache = features_none_data_cache
+        self.features_broken_data_cache = features_broken_data_cache
         self.features_data_cache = features_data_cache
         self.features_frames_cache = features_frames_cache
         self.image_field = image_field
@@ -77,7 +79,8 @@ class PageDataWorker(QThread):
                 feature_range = range(self.page_start - 1, -1, -1)
 
             page_f_ids = []
-            error_f_ids = []
+            error_occured = False
+
             count = 0
 
             for i in feature_range:
@@ -96,7 +99,9 @@ class PageDataWorker(QThread):
                 ):  # cache hit: do not extract data again
                     page_f_ids.append(f_id)
                     continue
-                if f_id in self.features_none_data_cache:  # cache hit: this feature has no data
+                if any(
+                    [f_id in self.features_none_data_cache, f_id in self.features_broken_data_cache]
+                ):  # cache hit: this feature has no/corrupt data
                     continue
                 try:
                     feature = self.layer.getFeature(f_id)
@@ -117,7 +122,7 @@ class PageDataWorker(QThread):
 
                     data = ImageFactory.extract_data(field_content, self.field_type)
 
-                    if not data:
+                    if not data:  # feature with no image data
                         self.features_none_data_cache.add(f_id)
                     else:
                         context.setFeature(feature)
@@ -126,7 +131,15 @@ class PageDataWorker(QThread):
                         self.features_data_cache.put(f_id, f_data)
 
                 except Exception as e:
-                    error_f_ids.append(f_id)
+                    error_occured = True
+                    self.features_broken_data_cache.add(
+                        f_id
+                    )  # features with corrupt data should not be evaluated again
+                    QgsMessageLog.logMessage(
+                        f"Extracting Data: Feature Id: {f_id} Error: {repr(e)}",
+                        "Images Viewer",
+                        level=2,
+                    )  # not sure if this is thread safe
 
             if self.reverse:
                 page_f_ids.reverse()
@@ -135,10 +148,15 @@ class PageDataWorker(QThread):
             next_page_start = self.page_start + count
 
             if not self.abandon:  # Check if the thread should be abandoned
-                self.page_ready.emit(self.page_start, next_page_start, page_f_ids, error_f_ids)
+                self.page_ready.emit(self.page_start, next_page_start, page_f_ids)
+
+            if error_occured:
+                self.message_dispatched.emit(
+                    "Extracting Data: Unable to get image data from all features. See logs for details.", 1
+                )
 
         except Exception as e:  # Catch any exception
-            self.message_dispatched.emit("Page Worker: " + repr(e), 2)
+            self.message_dispatched.emit("Extracting Data: " + repr(e), 2)
 
     @pyqtSlot()
     def stop(self):
