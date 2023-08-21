@@ -48,7 +48,7 @@ class LRUCache:
         with self._lock:
             return len(self._cache)
 
-    def capcacity(self):
+    def capacity(self):
         return self._capacity
 
 
