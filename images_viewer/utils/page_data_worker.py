@@ -57,8 +57,8 @@ class PageDataWorker(QThread):
     def run(self):
         """There must be at least one element in feature_ids"""
         try:
-            if not self.image_field:
-                self.page_ready.emit(self.page_start, self.page_start, [], [])
+            if not self.image_field:  # to do: this should not be the job of this function
+                self.page_ready.emit(self.page_start, self.page_start, [])
                 return
 
             display_expression = self.layer.displayExpression()
